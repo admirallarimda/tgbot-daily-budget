@@ -19,3 +19,5 @@ tgbot-daily-budget
 bot.cfg
 # emacs temporaries
 *~
+#tags
+.tags*
