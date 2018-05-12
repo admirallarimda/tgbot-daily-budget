@@ -5,10 +5,11 @@ var storage Storage = nil
 type Storage interface {
     AddIncome(w Wallet, val AmountChange) error
     AddExpense(w Wallet, val AmountChange) error
+    // GetAmountChanges(w Wallet, t1, t2 time.Date) ([]AmountChange, error)
 
     GetWalletForUser(userId int) (*Wallet, error)
 
-    // GetAmountChanges(w Wallet, t1, t2 time.Date) ([]AmountChange, error)
+    CreateUser(userId int) error
 }
 
 func GetStorage() Storage {

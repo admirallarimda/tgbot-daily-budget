@@ -9,6 +9,7 @@ type serviceMsg struct {
 
 type handlerTrigger struct {
     re *regexp.Regexp
+    cmd string
 }
 
 type msgHandler interface {

@@ -4,6 +4,7 @@ import "log"
 import "fmt"
 import "strconv"
 import "errors"
+import "time"
 import "github.com/go-redis/redis"
 import "github.com/satori/go.uuid"
 
@@ -68,4 +69,49 @@ func (s *RedisStorage) GetWalletForUser(userId int) (*Wallet, error) {
         return nil, err
     }
     return &Wallet{ID: walletId}, nil
+}
+
+func (s *RedisStorage) CreateUser(userId int) error {
+    log.Printf("Starting creation of user %d", userId)
+
+    key := fmt.Sprintf("user:%d", userId)
+    user := s.client.HGetAll(key)
+    if user != nil {
+        log.Printf("User %d has been already created", userId)
+        return errors.New("User exists")
+    }
+
+    walletId, err := s.createWallet()
+    if err != nil {
+        log.Printf("Could not create wallet for user %d with error: %s", userId, err)
+        return err
+    }
+    log.Printf("Wallet %s has been created for %d", walletId, userId)
+
+    return nil
+}
+
+func (s *RedisStorage) createWallet() (string, error) {
+    final_id := ""
+    for final_id == "" {
+        id, err := uuid.NewV4()
+        if err != nil {
+            log.Printf("Could get new wallet UUID due to error: %s", err)
+            return "", err
+        }
+
+        key := fmt.Sprintf("wallet:%s", id.String())
+        log.Printf("Checking if wallet with key %s exists", key)
+        result := s.client.HGetAll(key)
+        if result != nil {
+            log.Printf("Wallet with key %s exists, trying another one")
+            continue
+        }
+
+        log.Printf("Wallet with key %s doesn't exist, using it")
+        s.client.HSet(key, "created", time.Now().Unix())
+        final_id = id.String()
+    }
+
+    return final_id, nil
 }
