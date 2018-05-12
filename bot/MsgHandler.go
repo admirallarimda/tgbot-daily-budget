@@ -2,6 +2,7 @@ package bot
 
 import "gopkg.in/telegram-bot-api.v4"
 import "regexp"
+import "log"
 
 type serviceMsg struct {
     stopBot bool
@@ -10,11 +11,26 @@ type serviceMsg struct {
 type handlerTrigger struct {
     re *regexp.Regexp
     cmd string
+
+    in_msg_chan chan<- tgbotapi.Message
+}
+
+func (h *handlerTrigger) Handle(msg tgbotapi.Message) bool {
+    if h.re != nil && h.re.MatchString(msg.Text) {
+        log.Print("Message text '%s' matched regexp '%s', message will be sent to handler", msg.Text, h.re)
+        h.in_msg_chan <- msg
+        return true
+    }
+    if msg.IsCommand() && h.cmd == msg.Command() {
+        log.Print("Message text '%s' matched command '%s', message will be sent to handler", msg.Text, h.cmd)
+        h.in_msg_chan <- msg
+        return true
+    }
+    return false
 }
 
 type msgHandler interface {
-    register(in_msg_chan <-chan tgbotapi.Message,
-             out_msg_chan chan<- tgbotapi.MessageConfig,
+    register(out_msg_chan chan<- tgbotapi.MessageConfig,
              service_chan chan<- serviceMsg) handlerTrigger
     run() // to be called with 'go' statement
 }

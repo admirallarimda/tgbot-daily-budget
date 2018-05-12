@@ -7,6 +7,11 @@ import "net/http"
 
 import "../botcfg"
 
+type botChannels struct {
+    out_msg_chan chan tgbotapi.MessageConfig
+    service_chan chan serviceMsg
+}
+
 // panics internally if something goes wrong
 func setupBot(cfg botcfg.Config) (*tgbotapi.BotAPI, *tgbotapi.UpdatesChannel) {
     botToken := cfg.TGBot.Token
@@ -53,7 +58,25 @@ func setupBot(cfg botcfg.Config) (*tgbotapi.BotAPI, *tgbotapi.UpdatesChannel) {
     return bot, &updates
 }
 
-func run(updates *tgbotapi.UpdatesChannel, bot *tgbotapi.BotAPI, cfg botcfg.Config) {
+func setupHandlers(channels botChannels) []handlerTrigger {
+    triggers := make([]handlerTrigger, 0, 10)
+
+    start := startHandler{}
+    triggers = append(triggers, start.register(channels.out_msg_chan, channels.service_chan))
+    go start.run()
+
+    expense := expenseHandler{}
+    triggers = append(triggers, expense.register(channels.out_msg_chan, channels.service_chan))
+    go expense.run()
+
+    return triggers
+}
+
+func run(updates *tgbotapi.UpdatesChannel,
+         bot *tgbotapi.BotAPI,
+         cfg botcfg.Config,
+         channels botChannels,
+         handlers []handlerTrigger) {
     isRunning := true
     for isRunning {
         select {
@@ -63,6 +86,15 @@ func run(updates *tgbotapi.UpdatesChannel, bot *tgbotapi.BotAPI, cfg botcfg.Conf
                     log.Print("Message: empty. Skipping");
                     continue
                 }
+                for _, h := range handlers {
+                    h.Handle(*update.Message)
+                }
+            case _ = <- channels.out_msg_chan:
+                log.Printf("Received reply")
+                continue
+            case _ = <- channels.service_chan:
+                log.Printf("Received service message")
+                continue
         }
     }
 
@@ -73,7 +105,15 @@ func Start(cfg botcfg.Config) error {
     log.Print("Starting the bot")
 
     bot, updates := setupBot(cfg);
-    run(updates, bot, cfg)
+    replies := make(chan tgbotapi.MessageConfig, 0)
+    serviceCh := make(chan serviceMsg, 0)
+
+    channels := botChannels{
+        out_msg_chan: replies,
+        service_chan: serviceCh }
+
+    handlers := setupHandlers(channels)
+    run(updates, bot, cfg, channels, handlers)
 
     log.Print("Stopping the bot")
     return nil

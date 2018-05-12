@@ -9,13 +9,14 @@ type startHandler struct {
     baseHandler
 }
 
-func (h *startHandler) register(in_msg_chan <-chan tgbotapi.Message,
-                                out_msg_chan chan<- tgbotapi.MessageConfig,
+func (h *startHandler) register(out_msg_chan chan<- tgbotapi.MessageConfig,
                                 service_chan chan<- serviceMsg) handlerTrigger {
-    h.in_msg_chan = in_msg_chan
+    inCh := make(chan tgbotapi.Message, 0)
+    h.in_msg_chan = inCh
     h.out_msg_chan = out_msg_chan
 
-    return handlerTrigger{ cmd: "start" }
+    return handlerTrigger{ cmd: "start",
+                           in_msg_chan: inCh }
 }
 
 func (h *startHandler) run() {

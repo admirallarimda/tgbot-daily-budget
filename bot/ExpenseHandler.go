@@ -14,13 +14,14 @@ type expenseHandler struct {
     baseHandler
 }
 
-func (h *expenseHandler) register(in_msg_chan <-chan tgbotapi.Message,
-                                  out_msg_chan chan<- tgbotapi.MessageConfig,
+func (h *expenseHandler) register(out_msg_chan chan<- tgbotapi.MessageConfig,
                                   service_chan chan<- serviceMsg) handlerTrigger {
-    h.in_msg_chan = in_msg_chan
+    inCh := make(chan tgbotapi.Message, 0)
+    h.in_msg_chan = inCh
     h.out_msg_chan = out_msg_chan
 
-    return handlerTrigger{ re: re }
+    return handlerTrigger{ re: re,
+                           in_msg_chan: inCh }
 }
 
 func (h *expenseHandler) run() {
