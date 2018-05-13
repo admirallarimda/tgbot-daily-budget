@@ -9,11 +9,13 @@ import "github.com/go-redis/redis"
 import "github.com/satori/go.uuid"
 
 type RedisStorage struct {
-    client redis.Client
+    client *redis.Client
 }
 
-func NewRedisStorage() Storage {
+func NewRedisStorage(server string) Storage {
     s := &RedisStorage{}
+    s.client = redis.NewClient(&redis.Options{
+        Addr: server})
     return s
 }
 
@@ -71,12 +73,24 @@ func (s *RedisStorage) GetWalletForUser(userId int) (*Wallet, error) {
     return &Wallet{ID: walletId}, nil
 }
 
+func (s *RedisStorage) attachWalletToUser(userKey string, walletId string) error {
+    res := s.client.HSet(userKey, "wallet", walletId)
+
+    if res != nil && res.Val() == false {
+        log.Printf("Could not attach user '%s' and wallet '%s'", userKey, walletId)
+        return errors.New("Could not attach wallet to user")
+    }
+
+    log.Printf("Attached user with key '%s' and wallet '%s'", userKey, walletId)
+    return nil
+}
+
 func (s *RedisStorage) CreateUser(userId int) error {
     log.Printf("Starting creation of user %d", userId)
 
     key := fmt.Sprintf("user:%d", userId)
     user := s.client.HGetAll(key)
-    if user != nil {
+    if user != nil && len(user.Val()) > 0 {
         log.Printf("User %d has been already created", userId)
         return errors.New("User exists")
     }
@@ -86,7 +100,9 @@ func (s *RedisStorage) CreateUser(userId int) error {
         log.Printf("Could not create wallet for user %d with error: %s", userId, err)
         return err
     }
-    log.Printf("Wallet %s has been created for %d", walletId, userId)
+    log.Printf("Wallet %s has been created for user %d", walletId, userId)
+
+    s.attachWalletToUser(key, walletId)
 
     return nil
 }
@@ -103,12 +119,12 @@ func (s *RedisStorage) createWallet() (string, error) {
         key := fmt.Sprintf("wallet:%s", id.String())
         log.Printf("Checking if wallet with key %s exists", key)
         result := s.client.HGetAll(key)
-        if result != nil {
-            log.Printf("Wallet with key %s exists, trying another one")
+        if result != nil && len(result.Val()) > 0 {
+            log.Printf("Wallet with key %s exists, trying another one", key)
             continue
         }
 
-        log.Printf("Wallet with key %s doesn't exist, using it")
+        log.Printf("Wallet with key %s doesn't exist, using it", key)
         s.client.HSet(key, "created", time.Now().Unix())
         final_id = id.String()
     }

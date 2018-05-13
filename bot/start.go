@@ -6,6 +6,7 @@ import "golang.org/x/net/proxy"
 import "net/http"
 
 import "../botcfg"
+import "../budget"
 
 type botChannels struct {
     out_msg_chan chan tgbotapi.MessageConfig
@@ -61,15 +62,24 @@ func setupBot(cfg botcfg.Config) (*tgbotapi.BotAPI, *tgbotapi.UpdatesChannel) {
 func setupHandlers(channels botChannels) []handlerTrigger {
     triggers := make([]handlerTrigger, 0, 10)
 
+    log.Printf("Preparing 'start' handler")
     start := startHandler{}
     triggers = append(triggers, start.register(channels.out_msg_chan, channels.service_chan))
     go start.run()
 
+    log.Printf("Preparing 'expense' handler")
     expense := expenseHandler{}
     triggers = append(triggers, expense.register(channels.out_msg_chan, channels.service_chan))
     go expense.run()
 
     return triggers
+}
+
+func setupStorage(cfg botcfg.Config) {
+    redisServer := cfg.Redis.Server
+
+    storage := budget.NewRedisStorage(redisServer)
+    budget.SetStorage(storage)
 }
 
 func run(updates *tgbotapi.UpdatesChannel,
@@ -104,15 +114,22 @@ func run(updates *tgbotapi.UpdatesChannel,
 func Start(cfg botcfg.Config) error {
     log.Print("Starting the bot")
 
-    bot, updates := setupBot(cfg);
+    log.Printf("Setting up bot")
+    bot, updates := setupBot(cfg)
+
+    log.Printf("Setting up storage")
+    setupStorage(cfg)
+
     replies := make(chan tgbotapi.MessageConfig, 0)
     serviceCh := make(chan serviceMsg, 0)
-
     channels := botChannels{
         out_msg_chan: replies,
         service_chan: serviceCh }
 
+    log.Printf("Setting up handlers")
     handlers := setupHandlers(channels)
+
+    log.Printf("Running the bot...")
     run(updates, bot, cfg, channels, handlers)
 
     log.Print("Stopping the bot")

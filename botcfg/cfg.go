@@ -13,6 +13,10 @@ type Config struct {
         User string
         Pass string
     }
+
+    Redis struct {
+        Server string
+    }
 }
 
 func Read(filename string) (Config, error) {

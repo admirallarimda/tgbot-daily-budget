@@ -17,12 +17,12 @@ type handlerTrigger struct {
 
 func (h *handlerTrigger) Handle(msg tgbotapi.Message) bool {
     if h.re != nil && h.re.MatchString(msg.Text) {
-        log.Print("Message text '%s' matched regexp '%s', message will be sent to handler", msg.Text, h.re)
+        log.Printf("Message text '%s' matched regexp '%s', message will be sent to handler", msg.Text, h.re)
         h.in_msg_chan <- msg
         return true
     }
     if msg.IsCommand() && h.cmd == msg.Command() {
-        log.Print("Message text '%s' matched command '%s', message will be sent to handler", msg.Text, h.cmd)
+        log.Printf("Message text '%s' matched command '%s', message will be sent to handler", msg.Text, h.cmd)
         h.in_msg_chan <- msg
         return true
     }
