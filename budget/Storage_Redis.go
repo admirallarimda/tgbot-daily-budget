@@ -5,6 +5,7 @@ import "fmt"
 import "strconv"
 import "errors"
 import "time"
+import "math"
 import "github.com/go-redis/redis"
 import "github.com/satori/go.uuid"
 
@@ -32,18 +33,83 @@ func (s *RedisStorage) set(key, value string) error {
     return nil
 }
 
-func (s *RedisStorage) AddIncome(w Wallet, val AmountChange) error {
-    key := fmt.Sprintf("wallet:%s:in:%d", w.ID, val.Time.Unix())
+func (s *RedisStorage) AddAmountChange(w Wallet, val AmountChange) error {
+    operation := "out"
+    if val.Value >= 0 {
+        operation = "in"
+    }
+    key := fmt.Sprintf("wallet:%s:%s:%d", w.ID, operation, val.Time.Unix())
     value := strconv.Itoa(val.Value)
 
     return s.set(key, value)
 }
 
-func (s *RedisStorage) AddExpense(w Wallet, val AmountChange) error {
-    key := fmt.Sprintf("wallet:%s:out:%d", w.ID, val.Time.Unix())
-    value := strconv.Itoa(val.Value)
+func (s *RedisStorage) AddRegularChange(w Wallet, val, date int, description string) error {
+    if date < 1 || date > 28 {
+        return errors.New("Only dates between 1 and 28 are allowed for regular income/outcome setting")
+    }
 
-    return s.set(key, value)
+    operation := "out"
+    if val >= 0 {
+        operation = "in"
+    }
+    key := fmt.Sprintf("wallet:%s:monthly:%s:%d", w.ID, operation, date)
+
+    log.Printf("Setting regular monthly income/outcome with value %d to key %s", val, key)
+    return s.client.LPush(key, val).Err()
+}
+
+func (s *RedisStorage) GetMonthlyIncome(w Wallet) (int, error) {
+    log.Printf("Getting monthly income")
+    income := make(map[string]int, 10)
+    scanMatch := fmt.Sprintf("wallet:%s:monthly:*")
+    for {
+        var cursor uint64 = 0
+        keys, cursor, err := s.client.Scan(cursor, scanMatch, 10).Result()
+        if err != nil {
+            log.Printf("Error happened during scanning with match: %s; error: %s", scanMatch, err)
+            return 0, err
+        }
+
+        for _, k := range keys {
+            _, found := income[k]
+            if found {
+                log.Print("Key %s has already been used for monthly income calclation, skipping it", k)
+                continue
+            }
+
+            log.Print("Getting income values for key %s", k)
+            values, err := s.client.LRange(k, math.MinInt64, math.MaxInt64).Result()
+            if err != nil {
+                log.Printf("Cannot get list for key %s; error: %s", k, err)
+                return 0, err
+            }
+
+            for _, v := range values {
+                val, err := strconv.Atoi(v)
+                if err != nil {
+                    log.Printf("Could not convert value %s to integer due to error: %s", v, err)
+                    return 0, err
+                }
+                income[k] += val
+            }
+
+            log.Printf("Total income for key %s is %d", k, income[k])
+        }
+
+        if cursor == 0 {
+            log.Printf("Scanning finished")
+            break
+        }
+    }
+
+    totalIncome := 0
+    for _, v := range income {
+        totalIncome += v
+    }
+    log.Printf("Total income for wallet %s is %d", w.ID, totalIncome)
+
+    return totalIncome, nil
 }
 
 func (s *RedisStorage) GetWalletForUser(userId int) (*Wallet, error) {

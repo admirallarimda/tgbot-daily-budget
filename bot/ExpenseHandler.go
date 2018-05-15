@@ -48,7 +48,7 @@ func (h *expenseHandler) run() {
             continue
         }
 
-        err = budget.GetStorage().AddExpense(*wallet, *change)
+        err = budget.GetStorage().AddAmountChange(*wallet, *change)
         if err != nil {
             log.Printf("Could not add expence for user %d with wallet %s due to error: %s", userId, wallet.ID, err)
             continue

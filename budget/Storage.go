@@ -3,13 +3,16 @@ package budget
 var storage Storage = nil
 
 type Storage interface {
-    AddIncome(w Wallet, val AmountChange) error
-    AddExpense(w Wallet, val AmountChange) error
+    AddAmountChange(w Wallet, val AmountChange) error
+    AddRegularChange(w Wallet, val, date int, description string) error
     // GetAmountChanges(w Wallet, t1, t2 time.Date) ([]AmountChange, error)
+    GetMonthlyIncome(w Wallet) (int, error)
 
     GetWalletForUser(userId int) (*Wallet, error)
 
     CreateUser(userId int) error
+
+
 }
 
 func GetStorage() Storage {
