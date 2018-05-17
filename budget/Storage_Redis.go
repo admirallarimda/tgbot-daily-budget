@@ -44,19 +44,20 @@ func (s *RedisStorage) AddAmountChange(w Wallet, val AmountChange) error {
     return s.set(key, value)
 }
 
-func (s *RedisStorage) AddRegularChange(w Wallet, val, date int, description string) error {
+func (s *RedisStorage) AddRegularChange(w Wallet, change MonthlyChange) error {
+    date := change.Date
     if date < 1 || date > 28 {
         return errors.New("Only dates between 1 and 28 are allowed for regular income/outcome setting")
     }
 
     operation := "out"
-    if val >= 0 {
+    if change.Value >= 0 {
         operation = "in"
     }
     key := fmt.Sprintf("wallet:%s:monthly:%s:%d", w.ID, operation, date)
 
-    log.Printf("Setting regular monthly income/outcome with value %d to key %s", val, key)
-    return s.client.LPush(key, val).Err()
+    log.Printf("Setting regular monthly income/outcome with value %d to key %s", change.Value, key)
+    return s.client.LPush(key, change.Value).Err()
 }
 
 func (s *RedisStorage) GetMonthlyIncome(w Wallet) (int, error) {

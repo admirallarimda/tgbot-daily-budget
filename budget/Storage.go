@@ -4,7 +4,7 @@ var storage Storage = nil
 
 type Storage interface {
     AddAmountChange(w Wallet, val AmountChange) error
-    AddRegularChange(w Wallet, val, date int, description string) error
+    AddRegularChange(w Wallet, val MonthlyChange) error
     // GetAmountChanges(w Wallet, t1, t2 time.Date) ([]AmountChange, error)
     GetMonthlyIncome(w Wallet) (int, error)
 

@@ -15,6 +15,22 @@ func NewAmountChange(value int, t time.Time) *AmountChange {
     return amount
 }
 
+type MonthlyChange struct {
+    Value, Date int
+    Description string
+}
+
+func NewMonthlyChange(value, date int, desc string) *MonthlyChange {
+    if date < 1 || date > 28 {
+        panic("Date for monthly change is out of borders")
+    }
+    change := &MonthlyChange{ Value: value,
+                              Date: date,
+                              Description: desc}
+    return change
+}
+
+
 type Wallet struct {
     ID uuid.UUID
 }
