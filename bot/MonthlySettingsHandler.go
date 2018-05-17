@@ -21,7 +21,7 @@ func (h *monthlyHandler) register(out_msg_chan chan<- tgbotapi.MessageConfig,
     h.in_msg_chan = inCh
     h.out_msg_chan = out_msg_chan
 
-    return handlerTrigger{ cmd: "start",
+    return handlerTrigger{ cmd: "monthly",
                            in_msg_chan: inCh }
 }
 

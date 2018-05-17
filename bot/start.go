@@ -59,18 +59,19 @@ func setupBot(cfg botcfg.Config) (*tgbotapi.BotAPI, *tgbotapi.UpdatesChannel) {
     return bot, &updates
 }
 
+func addHandler(h msgHandler, name string, channels botChannels, triggers []handlerTrigger) []handlerTrigger {
+    log.Printf("Preparing '%s' handler", name)
+    triggers = append(triggers, h.register(channels.out_msg_chan, channels.service_chan))
+    go h.run()
+    return triggers
+}
+
 func setupHandlers(channels botChannels) []handlerTrigger {
     triggers := make([]handlerTrigger, 0, 10)
 
-    log.Printf("Preparing 'start' handler")
-    start := startHandler{}
-    triggers = append(triggers, start.register(channels.out_msg_chan, channels.service_chan))
-    go start.run()
-
-    log.Printf("Preparing 'expense' handler")
-    expense := expenseHandler{}
-    triggers = append(triggers, expense.register(channels.out_msg_chan, channels.service_chan))
-    go expense.run()
+    triggers = addHandler(&startHandler{}, "start", channels, triggers)
+    triggers = addHandler(&expenseHandler{}, "expense", channels, triggers)
+    triggers = addHandler(&monthlyHandler{}, "monthly wallet settings", channels, triggers)
 
     return triggers
 }
