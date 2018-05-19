@@ -9,6 +9,20 @@ import "math"
 import "github.com/go-redis/redis"
 import "github.com/satori/go.uuid"
 
+var daysInMonth = map[time.Month]int {  time.January: 31,
+                                        time.February: 28, // TODO: handle leap year
+                                        time.March: 31,
+                                        time.April: 30,
+                                        time.May: 31,
+                                        time.June: 30,
+                                        time.July: 31,
+                                        time.August: 31,
+                                        time.September: 30,
+                                        time.October: 31,
+                                        time.November: 30,
+                                        time.December: 31 }
+
+
 type RedisStorage struct {
     client *redis.Client
 }
@@ -111,6 +125,78 @@ func (s *RedisStorage) GetMonthlyIncome(w Wallet) (int, error) {
     log.Printf("Total income for wallet %s is %d", w.ID, totalIncome)
 
     return totalIncome, nil
+}
+
+func (s *RedisStorage) getMonthStart(w Wallet) (int, error) {
+    log.Printf("Looking for month start for wallet %s", w.ID)
+    key := fmt.Sprintf("wallet:%s")
+    res := s.client.HGet(key, "monthStart")
+
+    if res == nil {
+        log.Printf("Month start value for wallet key %s is not set, using default", key)
+        return 1, nil
+    }
+
+    if res.Err() != nil {
+        log.Printf("Could not get month start for wallet with key %s, error: %s", key, res.Err())
+        return 0, res.Err()
+    }
+
+    val, err := res.Int64()
+    if err != nil {
+        log.Printf("Could not convert value %s of month start for wallet with key %s, error: %s", res.Val(), key, err)
+        return 0, err
+    }
+
+    if val < 1 || val > 28 {
+        log.Printf("Month start for wallet key %s is out of expected ranges", key)
+        return 0, errors.New("Month start value out of range")
+    }
+
+    return int(val), nil
+}
+
+func (s *RedisStorage) GetMonthlyIncomeTillDate(w Wallet, t time.Time) (int, error) {
+    log.Printf("Calculating monthly income for wallet %s till time %s", w.ID, t)
+
+    monthly, err := s.GetMonthlyIncome(w)
+    if err != nil {
+        log.Printf("Could not calculate monthly income for wallet %s with error: %s", w.ID, err)
+        return 0, err
+    }
+
+    if monthly <= 0 {
+        log.Printf("Monthly income is %d (not positive), bot cannot work with such values", monthly)
+        return 0, errors.New("Negative monthly income")
+    }
+
+    log.Printf("Got monthly income for wallet %s equal to %d", w.ID, monthly)
+
+    monthStart, err := s.getMonthStart(w)
+    if err != nil {
+        log.Printf("Month start for wallet %s could not be retrieved due to error: %s", w.ID, err)
+        return 0, err
+    }
+
+    log.Printf("Month start for wallet %s is %d", w.ID, monthStart)
+
+    var result float32 = 0
+    // calculating result based on hoe many days have passed considering whether we've reached the end of prev month
+    curDay := t.Day()
+    if curDay >= monthStart {
+        daysInCurMonth := daysInMonth[t.Month()]
+        result = float32(monthly) / float32(daysInCurMonth * (curDay - monthStart + 1)) // +1 as we assume that daily portion is granted at the beginning of the day
+    } else {
+        // tricky code to calc how many days have passed if we've reached the end of the previous month
+        prevMonth := time.December
+        if t.Month() != time.January {
+            prevMonth = t.Month() - 1
+        }
+        result = float32(monthly) / float32(31 - (monthStart - curDay) - (31 - daysInMonth[prevMonth]))
+    }
+
+    log.Printf("Calculated montly income till date %s: it equals to %d", t, result)
+    return int(result), nil
 }
 
 func (s *RedisStorage) GetWalletForUser(userId int) (*Wallet, error) {
