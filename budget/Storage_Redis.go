@@ -3,6 +3,7 @@ package budget
 import "log"
 import "fmt"
 import "strconv"
+import "strings"
 import "errors"
 import "time"
 import "math"
@@ -78,9 +79,11 @@ func (s *RedisStorage) GetMonthlyIncome(w Wallet) (int, error) {
     log.Printf("Getting monthly income")
     income := make(map[string]int, 10)
     scanMatch := fmt.Sprintf("wallet:%s:monthly:*", w.ID)
+    var cursor uint64 = 0
     for {
-        var cursor uint64 = 0
-        keys, cursor, err := s.client.Scan(cursor, scanMatch, 10).Result()
+        keys, newcursor, err := s.client.Scan(cursor, scanMatch, 10).Result()
+        log.Printf("Monthly income scan by match %s has returned %d keys with cursor %d", scanMatch, len(keys), newcursor)
+        cursor = newcursor
         if err != nil {
             log.Printf("Error happened during scanning with match: %s; error: %s", scanMatch, err)
             return 0, err
@@ -89,11 +92,11 @@ func (s *RedisStorage) GetMonthlyIncome(w Wallet) (int, error) {
         for _, k := range keys {
             _, found := income[k]
             if found {
-                log.Print("Key %s has already been used for monthly income calclation, skipping it", k)
+                log.Printf("Key %s has already been used for monthly income calclation, skipping it", k)
                 continue
             }
 
-            log.Print("Getting income values for key %s", k)
+            log.Printf("Getting income values for key %s", k)
             values, err := s.client.LRange(k, math.MinInt64, math.MaxInt64).Result()
             if err != nil {
                 log.Printf("Cannot get list for key %s; error: %s", k, err)
@@ -129,13 +132,21 @@ func (s *RedisStorage) GetMonthlyIncome(w Wallet) (int, error) {
 
 func (s *RedisStorage) getMonthStart(w Wallet) (int, error) {
     log.Printf("Looking for month start for wallet %s", w.ID)
-    key := fmt.Sprintf("wallet:%s")
-    res := s.client.HGet(key, "monthStart")
+    key := fmt.Sprintf("wallet:%s", w.ID)
 
-    if res == nil {
+    monthStartField := "monthStart"
+    exists := s.client.HExists(key, monthStartField)
+    if exists.Err() != nil {
+        log.Printf("Could not check existance of month start field '%s' for wallet key %s", monthStartField, key)
+        return 0, nil
+    }
+    if exists.Val() == false {
         log.Printf("Month start value for wallet key %s is not set, using default", key)
         return 1, nil
     }
+
+    log.Printf("Month start field '%s' exists for wallet key %s, retrieving it", monthStartField, key)
+    res := s.client.HGet(key, monthStartField)
 
     if res.Err() != nil {
         log.Printf("Could not get month start for wallet with key %s, error: %s", key, res.Err())
@@ -185,7 +196,7 @@ func (s *RedisStorage) GetMonthlyIncomeTillDate(w Wallet, t time.Time) (int, err
     curDay := t.Day()
     if curDay >= monthStart {
         daysInCurMonth := daysInMonth[t.Month()]
-        result = float32(monthly) / float32(daysInCurMonth * (curDay - monthStart + 1)) // +1 as we assume that daily portion is granted at the beginning of the day
+        result = float32(monthly) / float32(daysInCurMonth) * float32((curDay - monthStart + 1)) // +1 as we assume that daily portion is granted at the beginning of the day
     } else {
         // tricky code to calc how many days have passed if we've reached the end of the previous month
         prevMonth := time.December
@@ -195,8 +206,74 @@ func (s *RedisStorage) GetMonthlyIncomeTillDate(w Wallet, t time.Time) (int, err
         result = float32(monthly) / float32(31 - (monthStart - curDay) - (31 - daysInMonth[prevMonth]))
     }
 
-    log.Printf("Calculated montly income till date %s: it equals to %d", t, result)
+    log.Printf("Calculated montly income till date %s: it equals to %f", t, result)
     return int(result), nil
+}
+
+func (s *RedisStorage) GetMonthlyExpenseTillDate(w Wallet, t time.Time) (int, error) {
+    log.Printf("Getting monthly expenses for wallet %s till date %s", w.ID, t)
+
+    monthStartDay, err := s.getMonthStart(w)
+    if err != nil {
+        log.Printf("Month start for wallet %s could not be retrieved due to error: %s", w.ID, err)
+        return 0, err
+    }
+    monthStart := time.Date(t.Year(), t.Month(), monthStartDay, 0, 0, 0, 0, time.Local) // TODO: check whether UTC or Local is needed
+    if t.Day() < monthStartDay {
+        // we've switched the month already, monthStart should be at the previous month
+        monthStart = monthStart.AddDate(0, -1, 0)
+    }
+    log.Printf("Month start is calculated to be %s", monthStart)
+
+    var totalExpense int64 = 0
+    scanMatch := fmt.Sprintf("wallet:%s:out:*", w.ID)
+    var cursor uint64 = 0
+    for {
+        keys, newcursor, err := s.client.Scan(cursor, scanMatch, 10).Result()
+        log.Printf("Monthly expense scan by match %s has returned %d keys with cursor %d", scanMatch, len(keys), newcursor)
+        cursor = newcursor
+        if err != nil {
+            log.Printf("Error happened during scanning with match: %s; error: %s", scanMatch, err)
+            return 0, err
+        }
+
+        for _, k := range keys {
+            keyParts := strings.Split(k, ":")
+            timeStr := keyParts[3]
+            timeUnix, err := strconv.ParseInt(timeStr, 10, 64)
+            if err != nil {
+                log.Printf("Could not convert %s to int due to error: %s", timeStr, err)
+                continue
+            }
+            expenseTime := time.Unix(timeUnix, 0)
+            if expenseTime.Before(monthStart) || expenseTime.After(t) {
+                log.Printf("Expense time %s is either before month start %s or right border %s", expenseTime, monthStart, t)
+                continue
+            }
+
+            expenseResult := s.client.Get(k)
+            if expenseResult.Err() != nil {
+                log.Printf("Could not get value for key %s due to error: %s", k, expenseResult.Err())
+                continue
+            }
+
+            expenseAmount, err := expenseResult.Int64()
+            if err != nil {
+                log.Printf("Could not convert expense amount %s to int, error: %s", expenseResult.Val(), err)
+                continue
+            }
+            totalExpense += expenseAmount
+        }
+
+        if cursor == 0 {
+            log.Printf("Scanning finished")
+            break
+        }
+    }
+
+    log.Printf("Calculated total expense %d for wallet %s from %s till %s", totalExpense, w.ID, monthStart, t)
+    return int(totalExpense), nil
+
 }
 
 func (s *RedisStorage) GetWalletForUser(userId int) (*Wallet, error) {

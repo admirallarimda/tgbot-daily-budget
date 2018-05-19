@@ -100,8 +100,12 @@ func run(updates *tgbotapi.UpdatesChannel,
                 for _, h := range handlers {
                     h.Handle(*update.Message)
                 }
-            case _ = <- channels.out_msg_chan:
+            case msg := <- channels.out_msg_chan:
                 log.Printf("Received reply")
+                _, err := bot.Send(msg)
+                if err != nil {
+                    log.Printf("Could not sent reply %+v due to error: %s", err)
+                }
                 continue
             case _ = <- channels.service_chan:
                 log.Printf("Received service message")
