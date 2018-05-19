@@ -63,7 +63,7 @@ func (s *RedisStorage) AddRegularChange(w Wallet, change MonthlyChange) error {
 func (s *RedisStorage) GetMonthlyIncome(w Wallet) (int, error) {
     log.Printf("Getting monthly income")
     income := make(map[string]int, 10)
-    scanMatch := fmt.Sprintf("wallet:%s:monthly:*")
+    scanMatch := fmt.Sprintf("wallet:%s:monthly:*", w.ID)
     for {
         var cursor uint64 = 0
         keys, cursor, err := s.client.Scan(cursor, scanMatch, 10).Result()

@@ -8,7 +8,7 @@ import "gopkg.in/telegram-bot-api.v4"
 
 import "../budget"
 
-var re *regexp.Regexp = regexp.MustCompile("-?(\\d+)") // any number
+var re *regexp.Regexp = regexp.MustCompile("^-?(\\d+)$") // any number
 
 type expenseHandler struct {
     baseHandler
