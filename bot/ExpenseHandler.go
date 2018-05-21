@@ -27,6 +27,9 @@ func (h *expenseHandler) register(out_msg_chan chan<- tgbotapi.MessageConfig,
 
 func (h *expenseHandler) run() {
     for msg := range h.in_msg_chan {
+
+        log.Printf("Message received from %s; text: %s", dumpMsgUserInfo(msg), msg.Text)
+
         matches := re.FindStringSubmatch(msg.Text)
         if matches == nil {
             // assert
@@ -42,20 +45,20 @@ func (h *expenseHandler) run() {
             continue
         }
         change := budget.NewAmountChange(-amount, time.Now()) // TODO: add correct handling for in/out (pos/neg) values here? or separate handler?
-        userId := msg.From.ID
-        wallet, err := budget.GetStorage().GetWalletForUser(userId)
+        ownerId := msg.Chat.ID
+        wallet, err := budget.GetStorage().GetWalletForOwner(ownerId)
         if err != nil {
-            log.Printf("Could not get wallet for user %d with error: %s", userId, err)
+            log.Printf("Could not get wallet for %s with error: %s", dumpMsgUserInfo(msg), err)
             continue
         }
 
         err = budget.GetStorage().AddAmountChange(*wallet, *change)
         if err != nil {
-            log.Printf("Could not add expence for user %d with wallet %s due to error: %s", userId, wallet.ID, err)
+            log.Printf("Could not add expence for %s with wallet %s due to error: %s", dumpMsgUserInfo(msg), wallet.ID, err)
             continue
         }
 
-        log.Printf("Expense of %d has been successfully added to wallet %s of user %d", change.Value, wallet.ID, userId)
+        log.Printf("Expense of %d has been successfully added to wallet %s for %s", change.Value, wallet.ID, dumpMsgUserInfo(msg))
 
         // getting current available money
         curAvailIncome, err := budget.GetStorage().GetMonthlyIncomeTillDate(*wallet, time.Now())

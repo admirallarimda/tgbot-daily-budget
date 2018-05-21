@@ -276,22 +276,21 @@ func (s *RedisStorage) GetMonthlyExpenseTillDate(w Wallet, t time.Time) (int, er
 
 }
 
-func (s *RedisStorage) GetWalletForUser(userId int) (*Wallet, error) {
-    key := fmt.Sprintf("user:%d", userId)
-    log.Printf("Getting wallet for user via key %s", key)
+func (s *RedisStorage) GetWalletForOwner(ownerId int64) (*Wallet, error) {
+    key := fmt.Sprintf("owner:%d", ownerId)
+    log.Printf("Getting wallet for owner via key %s", key)
     result := s.client.HGetAll(key)
     if result == nil {
-        log.Printf("Could not get user info for user with key %s", key)
-        // TODO: new user info?
-        return nil, errors.New("No user info")
+        log.Printf("Could not get user info for owner with key %s", key)
+        return nil, errors.New("No owner info")
     }
 
-    log.Printf("Got info about user key %s. Info: %v", key, result.Val())
+    log.Printf("Got info about owner key %s. Info: %v", key, result.Val())
     // TODO: add teams
     walletIdStr, found := result.Val()["wallet"]
     if !found {
-        log.Printf("No wallet found for user key %s", key)
-        return nil, errors.New("No wallet for user")
+        log.Printf("No wallet found for owner key %s", key)
+        return nil, errors.New("No wallet for owner")
         //TODO: request new wallet?
     }
 
@@ -303,34 +302,34 @@ func (s *RedisStorage) GetWalletForUser(userId int) (*Wallet, error) {
     return &Wallet{ID: walletId}, nil
 }
 
-func (s *RedisStorage) attachWalletToUser(userKey string, walletId string) error {
-    res := s.client.HSet(userKey, "wallet", walletId)
+func (s *RedisStorage) attachWalletToUser(ownerKey string, walletId string) error {
+    res := s.client.HSet(ownerKey, "wallet", walletId)
 
     if res != nil && res.Val() == false {
-        log.Printf("Could not attach user '%s' and wallet '%s'", userKey, walletId)
-        return errors.New("Could not attach wallet to user")
+        log.Printf("Could not attach owner '%s' and wallet '%s'", ownerKey, walletId)
+        return errors.New("Could not attach wallet to owner")
     }
 
-    log.Printf("Attached user with key '%s' and wallet '%s'", userKey, walletId)
+    log.Printf("Attached owner with key '%s' and wallet '%s'", ownerKey, walletId)
     return nil
 }
 
-func (s *RedisStorage) CreateUser(userId int) error {
-    log.Printf("Starting creation of user %d", userId)
+func (s *RedisStorage) CreateWalletOwner(ownerId int64) error {
+    log.Printf("Starting creation of owner %d", ownerId)
 
-    key := fmt.Sprintf("user:%d", userId)
-    user := s.client.HGetAll(key)
-    if user != nil && len(user.Val()) > 0 {
-        log.Printf("User %d has been already created", userId)
-        return errors.New("User exists")
+    key := fmt.Sprintf("owner:%d", ownerId)
+    owner := s.client.HGetAll(key)
+    if owner != nil && len(owner.Val()) > 0 {
+        log.Printf("Owner %d has been already created", ownerId)
+        return errors.New("Owner exists")
     }
 
     walletId, err := s.createWallet()
     if err != nil {
-        log.Printf("Could not create wallet for user %d with error: %s", userId, err)
+        log.Printf("Could not create wallet for owner %d with error: %s", ownerId, err)
         return err
     }
-    log.Printf("Wallet %s has been created for user %d", walletId, userId)
+    log.Printf("Wallet %s has been created for owner %d", walletId, ownerId)
 
     s.attachWalletToUser(key, walletId)
 

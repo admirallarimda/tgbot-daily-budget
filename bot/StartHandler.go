@@ -21,14 +21,16 @@ func (h *startHandler) register(out_msg_chan chan<- tgbotapi.MessageConfig,
 
 func (h *startHandler) run() {
     for msg := range h.in_msg_chan {
-        userId := msg.From.ID
-        err:= budget.GetStorage().CreateUser(userId)
+
+        chatId := msg.Chat.ID
+
+        err := budget.GetStorage().CreateWalletOwner(chatId)
         if err != nil {
-            log.Printf("Could not create user %d due to error: %s", userId, err)
+            log.Printf("Could not create wallet owner for %s due to error: %s", dumpMsgUserInfo(msg), err)
             continue
         }
 
-        log.Printf("User %d has been successfully added", userId)
+        log.Printf("Wallet owner for %s has been successfully added", dumpMsgUserInfo(msg))
 
         // TODO: reply + current available amount
     }

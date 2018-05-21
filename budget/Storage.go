@@ -12,9 +12,9 @@ type Storage interface {
     GetMonthlyIncomeTillDate(w Wallet, t time.Time) (int, error)
     GetMonthlyExpenseTillDate(w Wallet, t time.Time) (int, error)
 
-    GetWalletForUser(userId int) (*Wallet, error)
+    GetWalletForOwner(ownerId int64) (*Wallet, error)
 
-    CreateUser(userId int) error
+    CreateWalletOwner(ownerId int64) error
 
 
 }

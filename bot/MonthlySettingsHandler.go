@@ -78,12 +78,13 @@ func (h *monthlyHandler) run() {
         if len(changes) == 0 {
             log.Printf("No changes are going to be written after user command")
             // TODO: reply to user?
+            continue
         }
 
-        userId := msg.From.ID
-        w, err := budget.GetStorage().GetWalletForUser(userId)
+        ownerId := msg.Chat.ID
+        w, err := budget.GetStorage().GetWalletForOwner(ownerId)
         if err != nil {
-            log.Printf("Cannot get wallet for user %d, error: %s", userId, err)
+            log.Printf("Cannot get wallet for %s, error: %s", dumpMsgUserInfo(msg), err)
             // TODO: reply to user? create automatically?
             continue
         }
@@ -91,17 +92,17 @@ func (h *monthlyHandler) run() {
         for _, c := range(changes) {
             err = budget.GetStorage().AddRegularChange(*w, *c)
             if err != nil {
-                log.Printf("Cannot add regular change for wallet %s of user %d with error: %s", w.ID, userId, err)
+                log.Printf("Cannot add regular change for wallet %s of %s with error: %s", w.ID, dumpMsgUserInfo(msg), err)
                 continue
             }
         }
 
         monthlyIncome, err := budget.GetStorage().GetMonthlyIncome(*w)
         if err != nil {
-            log.Printf("Could not receive monthly income for wallet %s of user %d, error: %s", w.ID, userId, err)
+            log.Printf("Could not receive monthly income for wallet %s of %s, error: %s", w.ID, dumpMsgUserInfo(msg), err)
         }
 
-        log.Printf("Total monthly income for user %d is %d", userId, monthlyIncome)
+        log.Printf("Total monthly income for %s is %d", dumpMsgUserInfo(msg), monthlyIncome)
 
         // TODO: reply + current monthly settings
     }
