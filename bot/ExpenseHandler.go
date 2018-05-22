@@ -45,7 +45,7 @@ func (h *expenseHandler) run() {
             continue
         }
         change := budget.NewAmountChange(-amount, time.Now()) // TODO: add correct handling for in/out (pos/neg) values here? or separate handler?
-        ownerId := msg.Chat.ID
+        ownerId := budget.OwnerId(msg.Chat.ID)
         wallet, err := budget.GetStorage().GetWalletForOwner(ownerId)
         if err != nil {
             log.Printf("Could not get wallet for %s with error: %s", dumpMsgUserInfo(msg), err)
@@ -60,6 +60,7 @@ func (h *expenseHandler) run() {
 
         log.Printf("Expense of %d has been successfully added to wallet %s for %s", change.Value, wallet.ID, dumpMsgUserInfo(msg))
 
+        // TODO: separate function?
         // getting current available money
         curAvailIncome, err := budget.GetStorage().GetMonthlyIncomeTillDate(*wallet, time.Now())
         if err != nil {

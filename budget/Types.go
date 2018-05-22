@@ -44,3 +44,10 @@ func NewWallet() *Wallet {
     wallet := &Wallet{ ID: id }
     return wallet
 }
+
+type OwnerId int64
+type OwnerData struct {
+    WalletId *string    `wallet`
+    //Timezone *string  `tz`
+    DailyReminderTime *time.Duration `dailyNotifTime` // from UTC midnight
+}

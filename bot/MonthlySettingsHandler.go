@@ -46,7 +46,7 @@ func (h *monthlyHandler) run() {
             continue
         }
         if date < 1 || date > 28 {
-            log.Print("Incorrect date %d", date)
+            log.Printf("Incorrect date %d", date)
             // TODO: reply to user
             continue
         }
@@ -81,7 +81,7 @@ func (h *monthlyHandler) run() {
             continue
         }
 
-        ownerId := msg.Chat.ID
+        ownerId := budget.OwnerId(msg.Chat.ID)
         w, err := budget.GetStorage().GetWalletForOwner(ownerId)
         if err != nil {
             log.Printf("Cannot get wallet for %s, error: %s", dumpMsgUserInfo(msg), err)

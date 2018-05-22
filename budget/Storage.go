@@ -12,11 +12,11 @@ type Storage interface {
     GetMonthlyIncomeTillDate(w Wallet, t time.Time) (int, error)
     GetMonthlyExpenseTillDate(w Wallet, t time.Time) (int, error)
 
-    GetWalletForOwner(ownerId int64) (*Wallet, error)
+    GetWalletForOwner(ownerId OwnerId) (*Wallet, error)
 
-    CreateWalletOwner(ownerId int64) error
+    CreateWalletOwner(ownerId OwnerId) error
 
-
+    GetAllOwners() (map[OwnerId]OwnerData, error)
 }
 
 func GetStorage() Storage {
