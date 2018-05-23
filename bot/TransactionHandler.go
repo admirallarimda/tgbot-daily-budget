@@ -9,13 +9,13 @@ import "gopkg.in/telegram-bot-api.v4"
 
 import "../budget"
 
-var re *regexp.Regexp = regexp.MustCompile("^-?(\\d+)$") // any number
+var re *regexp.Regexp = regexp.MustCompile("^([+-]?)(\\d+)$") // any number
 
-type expenseHandler struct {
+type transactionHandler struct {
     baseHandler
 }
 
-func (h *expenseHandler) register(out_msg_chan chan<- tgbotapi.MessageConfig,
+func (h *transactionHandler) register(out_msg_chan chan<- tgbotapi.MessageConfig,
                                   service_chan chan<- serviceMsg) handlerTrigger {
     inCh := make(chan tgbotapi.Message, 0)
     h.in_msg_chan = inCh
@@ -25,7 +25,7 @@ func (h *expenseHandler) register(out_msg_chan chan<- tgbotapi.MessageConfig,
                            in_msg_chan: inCh }
 }
 
-func (h *expenseHandler) run() {
+func (h *transactionHandler) run() {
     for msg := range h.in_msg_chan {
 
         log.Printf("Message received from %s; text: %s", dumpMsgUserInfo(msg), msg.Text)
@@ -37,14 +37,19 @@ func (h *expenseHandler) run() {
             continue
         }
 
-        amountStr := matches[1]
+        signStr := matches[1]
+        sign := -1 // in most cases (no sign or '-' explicitly) we should pass negative number
+        if signStr == "+" {
+            sign = 1
+        }
+        amountStr := matches[2]
         amount, err := strconv.Atoi(amountStr)
         if err != nil {
             // assert
             log.Printf("Amount %s cannot be converted to Int; error: %s", amountStr, err)
             continue
         }
-        change := budget.NewAmountChange(-amount, time.Now()) // TODO: add correct handling for in/out (pos/neg) values here? or separate handler?
+        change := budget.NewAmountChange(sign * amount, time.Now())
         ownerId := budget.OwnerId(msg.Chat.ID)
         wallet, err := budget.GetStorage().GetWalletForOwner(ownerId)
         if err != nil {

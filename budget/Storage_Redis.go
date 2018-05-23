@@ -54,6 +54,8 @@ func (s *RedisStorage) AddAmountChange(w Wallet, val AmountChange) error {
         operation = "in"
     }
     key := fmt.Sprintf("wallet:%s:%s:%d", w.ID, operation, val.Time.Unix())
+    // abs
+    if val.Value < 0 { val.Value = -val.Value }
     value := strconv.Itoa(val.Value)
 
     return s.set(key, value)
