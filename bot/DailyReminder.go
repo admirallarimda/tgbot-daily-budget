@@ -69,29 +69,10 @@ func (d *dailyReminder) run() {
 
             log.Printf("Sending daily notifications for users with notification time at %s", t1)
             for _, owner := range reminderTimeOwners[t] {
-                // TODO: separate function?  owner -> Income minus Expences till date
-                wallet, err := budget.GetStorage().GetWalletForOwner(owner)
-                if err != nil {
-                    log.Printf("Could not get wallet for owner %d with error: %s", owner, err)
-                    continue
+                availMoney, err := getCurrentAvailableAmount(owner, now)
+                if err == nil {
+                    d.out_msg_chan<- tgbotapi.NewMessage(int64(owner), fmt.Sprintf("Currently available money: %d", availMoney))
                 }
-
-                // getting current available money
-                curAvailIncome, err := budget.GetStorage().GetMonthlyIncomeTillDate(*wallet, now)
-                if err != nil {
-                    log.Printf("Unable to get current available amount due to error: %s", err)
-                    continue
-                }
-
-                curExpenses, err := budget.GetStorage().GetMonthlyExpenseTillDate(*wallet, now)
-                if err != nil {
-                    log.Printf("Unable to get current expenses due to error: %s", err)
-                    continue
-                }
-
-                availMoney := curAvailIncome - curExpenses
-                log.Printf("Currently available money: %d (income: %d; expenses: %d)", availMoney, curAvailIncome, curExpenses)
-                d.out_msg_chan<- tgbotapi.NewMessage(int64(owner), fmt.Sprintf("Currently available money: %d", availMoney))
             }
 
             nextNotifTime := t1.Add(time.Duration(24) * time.Hour)
@@ -100,6 +81,7 @@ func (d *dailyReminder) run() {
 
         }
         reminderTimes = reminderTimes[lastNotifIx:]
+        log.Printf("Going to sleep. Processed %d reminders, keeping track of %d of them", lastNotifIx, len(reminderTimes))
         time.Sleep(time.Duration(1) * time.Minute)
     }
 }

@@ -60,24 +60,9 @@ func (h *expenseHandler) run() {
 
         log.Printf("Expense of %d has been successfully added to wallet %s for %s", change.Value, wallet.ID, dumpMsgUserInfo(msg))
 
-        // TODO: separate function?
-        // getting current available money
-        curAvailIncome, err := budget.GetStorage().GetMonthlyIncomeTillDate(*wallet, time.Now())
-        if err != nil {
-            log.Printf("Unable to get current available amount due to error: %s", err)
-            h.out_msg_chan<- tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("Unable to get current available amount :("))
-            continue
+        availMoney, err := getCurrentAvailableAmount(ownerId, time.Now())
+        if err == nil {
+            h.out_msg_chan<- tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("Currently available money: %d", availMoney))
         }
-
-        curExpenses, err := budget.GetStorage().GetMonthlyExpenseTillDate(*wallet, time.Now())
-        if err != nil {
-            log.Printf("Unable to get current expenses due to error: %s", err)
-            h.out_msg_chan<- tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("Unable to get current expenses :("))
-            continue
-        }
-
-        availMoney := curAvailIncome - curExpenses
-        log.Printf("Currently available money: %d (income: %d; expenses: %d)", availMoney, curAvailIncome, curExpenses)
-        h.out_msg_chan<- tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("Currently available money: %d", availMoney))
     }
 }
