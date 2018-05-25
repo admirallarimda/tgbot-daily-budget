@@ -74,10 +74,34 @@ func (s *RedisStorage) AddAmountChange(w Wallet, val AmountChange) error {
     return s.setHash(key, fields)
 }
 
+func (s *RedisStorage) checkRegularChangeLabelExist(w Wallet, label string) (bool, error) {
+    changes, err := s.getMonthlyChanges(w)
+    if err != nil {
+        log.Printf("Cannot check if label '%s' exists for wallet '%s' regular changes, error: %s", label, w.ID, err)
+        return true, err
+    }
+
+    for _, change := range changes {
+        if change.Label == label {
+            return true, nil
+        }
+    }
+    return false, nil
+}
+
 func (s *RedisStorage) AddRegularChange(w Wallet, change MonthlyChange) error {
     date := change.Date
     if date < 1 || date > 28 {
         return errors.New("Only dates between 1 and 28 are allowed for regular income/outcome setting")
+    }
+
+    exists, err := s.checkRegularChangeLabelExist(w, change.Label)
+    if err != nil {
+        return err
+    }
+    if exists {
+        log.Printf("Label '%s' already exists for wallet '%s', cannot add regular change", change.Label, w.ID)
+        return errors.New(fmt.Sprintf("Label '%s' already exists", change.Label))
     }
 
     operation := "in"
