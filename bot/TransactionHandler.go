@@ -9,7 +9,7 @@ import "gopkg.in/telegram-bot-api.v4"
 
 import "../budget"
 
-var re *regexp.Regexp = regexp.MustCompile("^([+-]?)(\\d+)$") // any number
+var re *regexp.Regexp = regexp.MustCompile("^([+-]?)(\\d+) *(#([\\wa-zA-ZА-Яа-я]+))?$") // any number + label
 
 type transactionHandler struct {
     baseHandler
@@ -36,6 +36,7 @@ func (h *transactionHandler) run() {
             log.Printf("No match of regexp, wrong handler!")
             continue
         }
+        log.Printf("Transaction regexp matched the following field: %s", matches)
 
         signStr := matches[1]
         sign := -1 // in most cases (no sign or '-' explicitly) we should pass negative number
@@ -51,7 +52,10 @@ func (h *transactionHandler) run() {
         }
 
         label := ""
-        log.Printf("Message contains label %s", label)
+        if len(matches) > 4 {
+            label = matches[4] // not 3 - using label without #
+        }
+        log.Printf("Message contains label '%s'", label)
 
         change := budget.NewAmountChange(sign * amount, time.Now(), label, msg.Text)
         ownerId := budget.OwnerId(msg.Chat.ID)
