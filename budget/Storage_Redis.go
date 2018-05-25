@@ -66,8 +66,6 @@ func (s *RedisStorage) AddAmountChange(w Wallet, val AmountChange) error {
         operation = "in"
     }
     key := fmt.Sprintf("wallet:%s:%s:%d", w.ID, operation, val.Time.Unix())
-    // abs
-    if val.Value < 0 { val.Value = -val.Value }
     fields := make(map[string]interface{}, 3)
     fields["value"] = val.Value
     fields["label"] = val.Label
@@ -319,7 +317,7 @@ func (s *RedisStorage) GetMonthlyExpenseTillDate(w Wallet, t time.Time) (int, er
     }
 
     log.Printf("Calculated total expense %d for wallet %s from %s till %s", totalExpense, w.ID, monthStart, t)
-    return int(totalExpense), nil
+    return -int(totalExpense), nil // returning positive value
 
 }
 
