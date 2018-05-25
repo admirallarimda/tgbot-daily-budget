@@ -49,7 +49,11 @@ func (h *transactionHandler) run() {
             log.Printf("Amount %s cannot be converted to Int; error: %s", amountStr, err)
             continue
         }
-        change := budget.NewAmountChange(sign * amount, time.Now())
+
+        label := ""
+        log.Printf("Message contains label %s", label)
+
+        change := budget.NewAmountChange(sign * amount, time.Now(), label, msg.Text)
         ownerId := budget.OwnerId(msg.Chat.ID)
         wallet, err := budget.GetStorage().GetWalletForOwner(ownerId)
         if err != nil {

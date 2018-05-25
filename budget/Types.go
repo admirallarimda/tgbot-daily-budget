@@ -7,11 +7,15 @@ import "github.com/satori/go.uuid"
 type AmountChange struct {
     Value int
     Time time.Time
+    Label string
+    RawText string // raw text - might be needed, but not necessary
 }
 
-func NewAmountChange(value int, t time.Time) *AmountChange {
+func NewAmountChange(value int, t time.Time, label, raw string) *AmountChange {
     amount := &AmountChange{ Value: value,
-                             Time: t}
+                             Time: t,
+                             Label: label,
+                             RawText: raw}
     return amount
 }
 

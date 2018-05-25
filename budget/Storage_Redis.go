@@ -48,6 +48,19 @@ func (s *RedisStorage) set(key, value string) error {
     return nil
 }
 
+func (s *RedisStorage) setHash(key string, fields map[string]interface{}) error {
+    log.Printf("Setting hash at key %s for %d hash keys", key, len(fields))
+
+    status := s.client.HMSet(key, fields)
+    err := status.Err()
+    if err != nil {
+        log.Printf("Unable to set hash with key %s; error: %s", key, err)
+        return err
+    }
+
+    return nil
+}
+
 func (s *RedisStorage) AddAmountChange(w Wallet, val AmountChange) error {
     operation := "out"
     if val.Value >= 0 {
@@ -56,9 +69,12 @@ func (s *RedisStorage) AddAmountChange(w Wallet, val AmountChange) error {
     key := fmt.Sprintf("wallet:%s:%s:%d", w.ID, operation, val.Time.Unix())
     // abs
     if val.Value < 0 { val.Value = -val.Value }
-    value := strconv.Itoa(val.Value)
+    fields := make(map[string]interface{}, 3)
+    fields["value"] = val.Value
+    fields["label"] = val.Label
+    fields["raw"] = val.RawText
 
-    return s.set(key, value)
+    return s.setHash(key, fields)
 }
 
 func (s *RedisStorage) AddRegularChange(w Wallet, change MonthlyChange) error {
@@ -253,7 +269,7 @@ func (s *RedisStorage) GetMonthlyExpenseTillDate(w Wallet, t time.Time) (int, er
                 continue
             }
 
-            expenseResult := s.client.Get(k)
+            expenseResult := s.client.HGet(k, "value")
             if expenseResult.Err() != nil {
                 log.Printf("Could not get value for key %s due to error: %s", k, expenseResult.Err())
                 continue
@@ -406,7 +422,7 @@ func (s *RedisStorage) GetAllOwners() (map[OwnerId]OwnerData, error) {
             keyParts := strings.Split(k, ":")
             ownerId, err := strconv.ParseInt(keyParts[1], 10, 64)
             if err != nil {
-                log.Printf("Could get owner ID from key %s; error: %s", k, err)
+                log.Printf("Could not get owner ID from key %s; error: %s", k, err)
                 continue
             }
             resultMap[OwnerId(ownerId)] = ownerData
