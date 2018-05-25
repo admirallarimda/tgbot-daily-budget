@@ -21,16 +21,16 @@ func NewAmountChange(value int, t time.Time, label, raw string) *AmountChange {
 
 type MonthlyChange struct {
     Value, Date int
-    Description string
+    Label string
 }
 
-func NewMonthlyChange(value, date int, desc string) *MonthlyChange {
+func NewMonthlyChange(value, date int, label string) *MonthlyChange {
     if date < 1 || date > 28 {
         panic("Date for monthly change is out of borders")
     }
     change := &MonthlyChange{ Value: value,
                               Date: date,
-                              Description: desc}
+                              Label: label}
     return change
 }
 

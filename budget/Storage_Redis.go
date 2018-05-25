@@ -6,7 +6,6 @@ import "strconv"
 import "strings"
 import "errors"
 import "time"
-import "math"
 import "github.com/go-redis/redis"
 import "github.com/satori/go.uuid"
 
@@ -83,19 +82,27 @@ func (s *RedisStorage) AddRegularChange(w Wallet, change MonthlyChange) error {
         return errors.New("Only dates between 1 and 28 are allowed for regular income/outcome setting")
     }
 
-    operation := "out"
-    if change.Value >= 0 {
-        operation = "in"
+    operation := "in"
+    if change.Value < 0 {
+        operation = "out"
     }
-    key := fmt.Sprintf("wallet:%s:monthly:%s:%d", w.ID, operation, date)
+    now := time.Now().Unix() // necessary for distinguishing 2 records
+    key := fmt.Sprintf("wallet:%s:monthly:%s:%d:%d", w.ID, operation, date, now)
 
     log.Printf("Setting regular monthly income/outcome with value %d to key %s", change.Value, key)
-    return s.client.LPush(key, change.Value).Err()
+
+    fields := make(map[string]interface{}, 3)
+    fields["value"] = change.Value
+    fields["label"] = change.Label
+    return s.setHash(key, fields)
 }
 
-func (s *RedisStorage) GetMonthlyIncome(w Wallet) (int, error) {
-    log.Printf("Getting monthly income")
-    income := make(map[string]int, 10)
+func (s *RedisStorage) getMonthlyChanges(w Wallet) ([]*MonthlyChange, error) {
+    log.Printf("Getting regular wallet changes for wallet '%s'", w.ID)
+
+    result := make([]*MonthlyChange, 0, 10)
+
+    repeatedKeysGuard := make(map[string]bool, 0)
     scanMatch := fmt.Sprintf("wallet:%s:monthly:*", w.ID)
     var cursor uint64 = 0
     for {
@@ -104,33 +111,41 @@ func (s *RedisStorage) GetMonthlyIncome(w Wallet) (int, error) {
         cursor = newcursor
         if err != nil {
             log.Printf("Error happened during scanning with match: %s; error: %s", scanMatch, err)
-            return 0, err
+            return nil, err
         }
 
         for _, k := range keys {
-            _, found := income[k]
+            _, found := repeatedKeysGuard[k]
             if found {
-                log.Printf("Key %s has already been used for monthly income calclation, skipping it", k)
+                log.Printf("Key %s has already been already added, skipping it", k)
                 continue
             }
 
             log.Printf("Getting income values for key %s", k)
-            values, err := s.client.LRange(k, math.MinInt64, math.MaxInt64).Result()
+            fields, err := s.client.HGetAll(k).Result()
             if err != nil {
-                log.Printf("Cannot get list for key %s; error: %s", k, err)
-                return 0, err
+                log.Printf("Cannot get wallet info for key '%s', error: %s", k, err)
+                continue // let's just skip it
             }
 
-            for _, v := range values {
-                val, err := strconv.Atoi(v)
-                if err != nil {
-                    log.Printf("Could not convert value %s to integer due to error: %s", v, err)
-                    return 0, err
-                }
-                income[k] += val
+            valueStr := fields["value"]
+            value, err := strconv.Atoi(valueStr)
+            if err != nil {
+                log.Printf("Could not convert value %s to integer, error: %s", valueStr, err)
+                return nil, err
             }
 
-            log.Printf("Total income for key %s is %d", k, income[k])
+            keyParts := strings.Split(k, ":")
+            dateStr := keyParts[4]
+            date, err := strconv.Atoi(dateStr)
+            if err != nil {
+                log.Printf("Could not convert time %s to integer, error: %s", dateStr, err)
+                return nil, err
+            }
+
+            result = append(result, NewMonthlyChange(value, date, fields["label"]))
+
+            repeatedKeysGuard[k] = true
         }
 
         if cursor == 0 {
@@ -139,10 +154,24 @@ func (s *RedisStorage) GetMonthlyIncome(w Wallet) (int, error) {
         }
     }
 
-    totalIncome := 0
-    for _, v := range income {
-        totalIncome += v
+    log.Printf("Wallet '%s' has %d regular changes", w.ID, len(result))
+
+    return result, nil
+}
+
+func (s *RedisStorage) GetMonthlyIncome(w Wallet) (int, error) {
+    log.Printf("Getting monthly income")
+    changes, err := s.getMonthlyChanges(w)
+    if err != nil {
+        log.Print("Could not get monthly changes for wallet '%s', error: %s", w.ID, err)
+        return 0, err
     }
+
+    totalIncome := 0
+    for _, change := range changes {
+        totalIncome += change.Value
+    }
+
     log.Printf("Total income for wallet %s is %d", w.ID, totalIncome)
 
     return totalIncome, nil
