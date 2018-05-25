@@ -27,6 +27,34 @@ type RedisStorage struct {
     client *redis.Client
 }
 
+func uniqueStringSlice(s []string) []string {
+    result := make([]string, 0, len(s))
+    seen := make(map[string]bool, len(s))
+    for _, elem := range s {
+        if _, found := seen[elem]; found {
+            continue
+        }
+        result = append(result, elem)
+        seen[elem] = true
+    }
+    return result
+}
+
+func calcCurMonthBorders(walletMonthStartDay int, now time.Time) (time.Time, time.Time) {
+    if walletMonthStartDay < 1 || walletMonthStartDay > 28 {
+        panic("Date must be between 1 and 28")
+    }
+
+    monthStart := time.Date(now.Year(), now.Month(), walletMonthStartDay, 0, 0, 0, 0, time.Local) // TODO: check whether UTC or Local is needed
+    if now.Day() < walletMonthStartDay {
+        // we've switched the month already, monthStart should be at the previous month
+        monthStart = monthStart.AddDate(0, -1, 0)
+    }
+    monthEnd := monthStart.AddDate(0, 1, 0)
+    log.Printf("Month borders are from %s to %s", monthStart, monthEnd)
+    return monthStart, monthEnd
+}
+
 func NewRedisStorage(server string) Storage {
     s := &RedisStorage{}
     s.client = redis.NewClient(&redis.Options{
@@ -181,6 +209,76 @@ func (s *RedisStorage) getMonthlyChanges(w Wallet) ([]*MonthlyChange, error) {
     return result, nil
 }
 
+func (s *RedisStorage) getAllKeys(matchPattern string) ([]string, error) {
+    log.Printf("Starting scanning for match '%s'", matchPattern)
+    result := make([]string, 0, 10)
+    var cursor uint64 = 0
+    for {
+        keys, newcursor, err := s.client.Scan(cursor, matchPattern, 10).Result()
+        if err != nil {
+            log.Printf("Error happened while scanning with match pattern '%s', error: %s", matchPattern, err)
+            return nil, err
+        }
+        cursor = newcursor
+        result = append(result, keys...)
+        if cursor == 0 {
+            log.Printf("Scanning for '%s' has finished, result contains %d elements", matchPattern, len(result))
+            break
+        }
+    }
+    return result, nil
+}
+
+func (s *RedisStorage) getTransactionsForTimeWindow(w Wallet, t1, t2 time.Time) ([]AmountChange, error) {
+    if t2.Before(t1) {
+        panic("Time borders misaligned")
+    }
+
+    matchIn := fmt.Sprintf("wallet:%s:in:*", w.ID)
+    matchOut := fmt.Sprintf("wallet:%s:out:*", w.ID)
+
+    keysIn, err := s.getAllKeys(matchIn)
+    if err != nil {
+        log.Printf("Error happened during getting all IN transactions via match '%s', error: %s", matchIn, err)
+        return nil, err
+    }
+    log.Printf("Found %d keys matching scanner '%s'", len(keysIn), matchIn)
+    keysOut, err := s.getAllKeys(matchOut)
+    if err != nil {
+        log.Printf("Error happened during getting all OUT transactions via match '%s', error: %s", matchOut, err)
+        return nil, err
+    }
+    log.Printf("Found %d keys matching scanner '%s'", len(keysOut), matchOut)
+    allKeys := append(keysIn, keysOut...)
+    allKeys = uniqueStringSlice(allKeys)
+
+    result := make([]AmountChange, 0, len(allKeys))
+    for _, k := range allKeys {
+        tUnix, err := strconv.ParseInt(strings.Split(k, ":")[3], 10, 64)
+        if err != nil {
+            log.Printf("Cannot convert time from key '%s' to integer, error: %s", k, err)
+        }
+        t := time.Unix(tUnix, 0)
+        if t.After(t1) && t.Before(t2) {
+            log.Printf("Key '%s' is in our time window, getting data from it", t)
+            fields, err := s.client.HGetAll(k).Result()
+            if err != nil {
+                log.Printf("Cannot get transaction for key '%s', error: %s", k, err)
+                continue // let's just skip it
+            }
+
+            valueStr := fields["value"]
+            value, err := strconv.Atoi(valueStr)
+            if err != nil {
+                log.Printf("Could not convert value %s to integer, error: %s", valueStr, err)
+                return nil, err
+            }
+            result = append(result, *NewAmountChange(value, t, fields["label"], ""))
+        }
+    }
+    return result, nil
+}
+
 func (s *RedisStorage) GetMonthlyIncome(w Wallet) (int, error) {
     log.Printf("Getting monthly income")
     changes, err := s.getMonthlyChanges(w)
@@ -239,26 +337,50 @@ func (s *RedisStorage) getMonthStart(w Wallet) (int, error) {
 func (s *RedisStorage) GetMonthlyIncomeTillDate(w Wallet, t time.Time) (int, error) {
     log.Printf("Calculating monthly income for wallet %s till time %s", w.ID, t)
 
-    monthly, err := s.GetMonthlyIncome(w)
+    regularTransactions, err := s.getMonthlyChanges(w)
     if err != nil {
-        log.Printf("Could not calculate monthly income for wallet %s with error: %s", w.ID, err)
+        log.Print("Could not get monthly changes for wallet '%s', error: %s", w.ID, err)
         return 0, err
     }
-
-    if monthly <= 0 {
-        log.Printf("Monthly income is %d (not positive), bot cannot work with such values", monthly)
-        return 0, errors.New("Negative monthly income")
-    }
-
-    log.Printf("Got monthly income for wallet %s equal to %d", w.ID, monthly)
 
     monthStart, err := s.getMonthStart(w)
     if err != nil {
         log.Printf("Month start for wallet %s could not be retrieved due to error: %s", w.ID, err)
         return 0, err
     }
-
     log.Printf("Month start for wallet %s is %d", w.ID, monthStart)
+
+    t1, t2 := calcCurMonthBorders(monthStart, time.Now())
+    transactions, err := s.getTransactionsForTimeWindow(w, t1, t2)
+    if err != nil {
+        log.Printf("Could not receive transactions due to error: %s", err)
+        return 0, err
+    }
+
+    // we need to find which regular transactions were actually fulfilled
+    regularLabelsIncome := make(map[string]int, 0)
+    for _, regTr := range regularTransactions {
+        regularLabelsIncome[regTr.Label] += regTr.Value
+        log.Printf("Regular transaction for label '%s' has been updated with value %d and now contains %d", regTr.Label, regTr.Value, regularLabelsIncome[regTr.Label])
+    }
+
+    transactionLabelsIncome := make(map[string]int, 0)
+    for _, transaction := range transactions {
+        transactionLabelsIncome[transaction.Label] += transaction.Value
+        log.Printf("Transaction for label '%s' has been updated with value %d and now contains %d", transaction.Label, transaction.Value, transactionLabelsIncome[transaction.Label])
+    }
+
+    for label, _ := range regularLabelsIncome {
+        if actualVal, found := transactionLabelsIncome[label]; found {
+            regularLabelsIncome[label] = actualVal
+            log.Printf("Regular income for label '%s' has been changed to value %d", regularLabelsIncome[label])
+        }
+    }
+
+    monthly := 0
+    for _, income := range regularLabelsIncome {
+        monthly += income
+    }
 
     var result float32 = 0
     // calculating result based on hoe many days have passed considering whether we've reached the end of prev month
