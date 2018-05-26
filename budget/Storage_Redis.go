@@ -55,10 +55,11 @@ func calcCurMonthBorders(walletMonthStartDay int, now time.Time) (time.Time, tim
     return monthStart, monthEnd
 }
 
-func NewRedisStorage(server string) Storage {
+func NewRedisStorage(server string, db int) Storage {
     s := &RedisStorage{}
     s.client = redis.NewClient(&redis.Options{
-        Addr: server})
+        Addr: server,
+        DB: db})
     return s
 }
 

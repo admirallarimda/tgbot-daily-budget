@@ -79,8 +79,9 @@ func setupHandlers(channels botChannels) []handlerTrigger {
 
 func setupStorage(cfg botcfg.Config) {
     redisServer := cfg.Redis.Server
+    redisDB := cfg.Redis.DB
 
-    storage := budget.NewRedisStorage(redisServer)
+    storage := budget.NewRedisStorage(redisServer, redisDB)
     budget.SetStorage(storage)
 }
 
