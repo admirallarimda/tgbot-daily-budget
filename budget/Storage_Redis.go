@@ -342,6 +342,13 @@ func (s *RedisStorage) GetMonthlyIncomeTillDate(w Wallet, t time.Time) (int, err
         log.Print("Could not get monthly changes for wallet '%s', error: %s", w.ID, err)
         return 0, err
     }
+    regularTransactionsLabeled := make(map[string]int, len(regularTransactions))
+    for _, regularElem := range regularTransactions {
+        if regularElem.Label == "" {
+            panic("Label for regular transaction is empty")
+        }
+        regularTransactionsLabeled[regularElem.Label] = regularElem.Value
+    }
 
     monthStart, err := s.getMonthStart(w)
     if err != nil {
@@ -357,30 +364,31 @@ func (s *RedisStorage) GetMonthlyIncomeTillDate(w Wallet, t time.Time) (int, err
         return 0, err
     }
 
-    // we need to find which regular transactions were actually fulfilled
-    regularLabelsIncome := make(map[string]int, 0)
-    for _, regTr := range regularTransactions {
-        regularLabelsIncome[regTr.Label] += regTr.Value
-        log.Printf("Regular transaction for label '%s' has been updated with value %d and now contains %d", regTr.Label, regTr.Value, regularLabelsIncome[regTr.Label])
-    }
-
-    transactionLabelsIncome := make(map[string]int, 0)
-    for _, transaction := range transactions {
-        transactionLabelsIncome[transaction.Label] += transaction.Value
-        log.Printf("Transaction for label '%s' has been updated with value %d and now contains %d", transaction.Label, transaction.Value, transactionLabelsIncome[transaction.Label])
-    }
-
-    for label, _ := range regularLabelsIncome {
-        if actualVal, found := transactionLabelsIncome[label]; found {
-            regularLabelsIncome[label] = actualVal
-            log.Printf("Regular income for label '%s' has been changed to value %d", regularLabelsIncome[label])
-        }
-    }
-
     monthly := 0
-    for _, income := range regularLabelsIncome {
-        monthly += income
+    regularReplacedWithActual := make(map[string]bool, 0)
+    for _, transaction := range transactions {
+        label := transaction.Label
+        value := transaction.Value
+        if regularValue, regularFound := regularTransactionsLabeled[label]; regularFound {
+            log.Printf("Found a transaction labeled '%s' which replaces value %d -> %d", label, regularValue, value)
+            monthly += value
+            regularReplacedWithActual[label] = true
+        } else if value > 0 {
+            log.Printf("Found a transaction labeled '%s' with positive income %d, using it for monthly income calculation", label, value)
+            monthly += value
+        } // else value <= 0 { log.Printf("Skipping transaction labeled '%s' with negative value %d", label, value) }
     }
+
+    // adding those regular transactions which were not yet matches with an actial one
+    for label, value := range regularTransactionsLabeled {
+        if _, found := regularReplacedWithActual[label]; found {
+            log.Printf("Regular transaction labeled '%s' with value %d has already been matched by an actual transaction, skipping", label, value)
+            continue
+        }
+        log.Printf("Regular transaction labeled '%s' with value %d will be used for monthly income calculation", label, value)
+        monthly += value
+    }
+    log.Printf("Final montly income is: %d", monthly)
 
     var result float32 = 0
     // calculating result based on hoe many days have passed considering whether we've reached the end of prev month
