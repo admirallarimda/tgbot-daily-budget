@@ -68,7 +68,7 @@ func (h *monthlyHandler) run() {
         log.Printf("Parsed label: %s", label)
 
         // TODO: think of possibility to add multiple values (/monthly income 500 #salary1 date 5 income 200 #salary2 date 20 expense 10 expense 40 date 3)
-        changes := make([]*budget.MonthlyChange, 0, len(incomeMatches) + len(expenseMatches))
+        transactions := make([]*budget.RegularTransaction, 0, len(incomeMatches) + len(expenseMatches))
         if len(incomeMatches) > 0 {
             valStr := incomeMatches[1]
             incomeVal, err := strconv.Atoi(valStr)
@@ -76,7 +76,7 @@ func (h *monthlyHandler) run() {
                 log.Printf("Could not convert income value %s to int", valStr)
                 h.out_msg_chan<- tgbotapi.NewMessage(int64(ownerId), fmt.Sprintf("Your income '%s' is not an integer number (but it should be)", valStr))
             } else {
-                changes = append(changes, budget.NewMonthlyChange(incomeVal, date, label))
+                transactions = append(transactions, budget.NewRegularTransaction(incomeVal, date, label))
             }
         }
 
@@ -88,12 +88,12 @@ func (h *monthlyHandler) run() {
                 log.Printf("Could not convert expense value %s to int", valStr)
                 h.out_msg_chan<- tgbotapi.NewMessage(int64(ownerId), fmt.Sprintf("Your expense '%s' is not an integer number (but it should be)", valStr))
             } else {
-                changes = append(changes, budget.NewMonthlyChange(-expenseVal, date, label))
+                transactions = append(transactions, budget.NewRegularTransaction(-expenseVal, date, label))
             }
         }
 
-        if len(changes) == 0 {
-            log.Printf("No changes are going to be written after user command")
+        if len(transactions) == 0 {
+            log.Printf("No transactions are going to be written after user command")
             h.out_msg_chan<- tgbotapi.NewMessage(int64(ownerId), fmt.Sprintf("No income or expense were found in the message (example: %s)", example))
             continue
         }
@@ -105,7 +105,7 @@ func (h *monthlyHandler) run() {
             continue
         }
 
-        for _, c := range(changes) {
+        for _, c := range(transactions) {
             err = budget.GetStorage().AddRegularChange(*w, *c)
             if err != nil {
                 log.Printf("Cannot add regular change for wallet %s of %s with error: %s", w.ID, dumpMsgUserInfo(msg), err)

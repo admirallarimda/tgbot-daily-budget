@@ -57,7 +57,7 @@ func (h *transactionHandler) run() {
         }
         log.Printf("Message contains label '%s'", label)
 
-        change := budget.NewAmountChange(sign * amount, time.Now(), label, msg.Text)
+        transaction := budget.NewActualTransaction(sign * amount, time.Now(), label, msg.Text)
         ownerId := budget.OwnerId(msg.Chat.ID)
         wallet, err := budget.GetStorage().GetWalletForOwner(ownerId)
         if err != nil {
@@ -65,13 +65,13 @@ func (h *transactionHandler) run() {
             continue
         }
 
-        err = budget.GetStorage().AddAmountChange(*wallet, *change)
+        err = budget.GetStorage().AddActualTransaction(*wallet, *transaction)
         if err != nil {
             log.Printf("Could not add expence for %s with wallet %s due to error: %s", dumpMsgUserInfo(msg), wallet.ID, err)
             continue
         }
 
-        log.Printf("Expense of %d has been successfully added to wallet %s for %s", change.Value, wallet.ID, dumpMsgUserInfo(msg))
+        log.Printf("Expense of %d has been successfully added to wallet %s for %s", transaction.Value, wallet.ID, dumpMsgUserInfo(msg))
 
         availMoney, err := getCurrentAvailableAmount(ownerId, time.Now())
         if err == nil {

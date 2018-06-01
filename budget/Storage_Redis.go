@@ -89,7 +89,7 @@ func (s *RedisStorage) setHash(key string, fields map[string]interface{}) error 
     return nil
 }
 
-func (s *RedisStorage) AddAmountChange(w Wallet, val AmountChange) error {
+func (s *RedisStorage) AddActualTransaction(w Wallet, val ActualTransaction) error {
     operation := "out"
     if val.Value >= 0 {
         operation = "in"
@@ -104,13 +104,13 @@ func (s *RedisStorage) AddAmountChange(w Wallet, val AmountChange) error {
 }
 
 func (s *RedisStorage) checkRegularChangeLabelExist(w Wallet, label string) (bool, error) {
-    changes, err := s.getMonthlyChanges(w)
+    transactions, err := s.getRegularTransactions(w)
     if err != nil {
-        log.Printf("Cannot check if label '%s' exists for wallet '%s' regular changes, error: %s", label, w.ID, err)
+        log.Printf("Cannot check if label '%s' exists for wallet '%s' regular transactions, error: %s", label, w.ID, err)
         return true, err
     }
 
-    for _, change := range changes {
+    for _, change := range transactions {
         if change.Label == label {
             return true, nil
         }
@@ -118,7 +118,7 @@ func (s *RedisStorage) checkRegularChangeLabelExist(w Wallet, label string) (boo
     return false, nil
 }
 
-func (s *RedisStorage) AddRegularChange(w Wallet, change MonthlyChange) error {
+func (s *RedisStorage) AddRegularChange(w Wallet, change RegularTransaction) error {
     date := change.Date
     if date < 1 || date > 28 {
         return errors.New("Only dates between 1 and 28 are allowed for regular income/outcome setting")
@@ -148,10 +148,10 @@ func (s *RedisStorage) AddRegularChange(w Wallet, change MonthlyChange) error {
     return s.setHash(key, fields)
 }
 
-func (s *RedisStorage) getMonthlyChanges(w Wallet) ([]*MonthlyChange, error) {
-    log.Printf("Getting regular wallet changes for wallet '%s'", w.ID)
+func (s *RedisStorage) getRegularTransactions(w Wallet) ([]*RegularTransaction, error) {
+    log.Printf("Getting regular wallet transactions for wallet '%s'", w.ID)
 
-    result := make([]*MonthlyChange, 0, 10)
+    result := make([]*RegularTransaction, 0, 10)
 
     repeatedKeysGuard := make(map[string]bool, 0)
     scanMatch := fmt.Sprintf("wallet:%s:monthly:*", w.ID)
@@ -194,7 +194,7 @@ func (s *RedisStorage) getMonthlyChanges(w Wallet) ([]*MonthlyChange, error) {
                 return nil, err
             }
 
-            result = append(result, NewMonthlyChange(value, date, fields["label"]))
+            result = append(result, NewRegularTransaction(value, date, fields["label"]))
 
             repeatedKeysGuard[k] = true
         }
@@ -205,7 +205,7 @@ func (s *RedisStorage) getMonthlyChanges(w Wallet) ([]*MonthlyChange, error) {
         }
     }
 
-    log.Printf("Wallet '%s' has %d regular changes", w.ID, len(result))
+    log.Printf("Wallet '%s' has %d regular transactions", w.ID, len(result))
 
     return result, nil
 }
@@ -230,7 +230,7 @@ func (s *RedisStorage) getAllKeys(matchPattern string) ([]string, error) {
     return result, nil
 }
 
-func (s *RedisStorage) getTransactionsForTimeWindow(w Wallet, t1, t2 time.Time) ([]AmountChange, error) {
+func (s *RedisStorage) getTransactionsForTimeWindow(w Wallet, t1, t2 time.Time) ([]ActualTransaction, error) {
     if t2.Before(t1) {
         panic("Time borders misaligned")
     }
@@ -253,7 +253,7 @@ func (s *RedisStorage) getTransactionsForTimeWindow(w Wallet, t1, t2 time.Time) 
     allKeys := append(keysIn, keysOut...)
     allKeys = uniqueStringSlice(allKeys)
 
-    result := make([]AmountChange, 0, len(allKeys))
+    result := make([]ActualTransaction, 0, len(allKeys))
     for _, k := range allKeys {
         tUnix, err := strconv.ParseInt(strings.Split(k, ":")[3], 10, 64)
         if err != nil {
@@ -274,7 +274,7 @@ func (s *RedisStorage) getTransactionsForTimeWindow(w Wallet, t1, t2 time.Time) 
                 log.Printf("Could not convert value %s to integer, error: %s", valueStr, err)
                 return nil, err
             }
-            result = append(result, *NewAmountChange(value, t, fields["label"], ""))
+            result = append(result, *NewActualTransaction(value, t, fields["label"], ""))
         }
     }
     return result, nil
@@ -282,14 +282,14 @@ func (s *RedisStorage) getTransactionsForTimeWindow(w Wallet, t1, t2 time.Time) 
 
 func (s *RedisStorage) GetMonthlyIncome(w Wallet) (int, error) {
     log.Printf("Getting monthly income")
-    changes, err := s.getMonthlyChanges(w)
+    transactions, err := s.getRegularTransactions(w)
     if err != nil {
-        log.Print("Could not get monthly changes for wallet '%s', error: %s", w.ID, err)
+        log.Print("Could not get monthly transactions for wallet '%s', error: %s", w.ID, err)
         return 0, err
     }
 
     totalIncome := 0
-    for _, change := range changes {
+    for _, change := range transactions {
         totalIncome += change.Value
     }
 
@@ -338,9 +338,9 @@ func (s *RedisStorage) getMonthStart(w Wallet) (int, error) {
 func (s *RedisStorage) GetMonthlyIncomeTillDate(w Wallet, t time.Time) (int, error) {
     log.Printf("Calculating monthly income for wallet %s till time %s", w.ID, t)
 
-    regularTransactions, err := s.getMonthlyChanges(w)
+    regularTransactions, err := s.getRegularTransactions(w)
     if err != nil {
-        log.Print("Could not get monthly changes for wallet '%s', error: %s", w.ID, err)
+        log.Print("Could not get monthly transactions for wallet '%s', error: %s", w.ID, err)
         return 0, err
     }
     regularTransactionsLabeled := make(map[string]int, len(regularTransactions))

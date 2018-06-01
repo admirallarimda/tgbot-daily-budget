@@ -4,34 +4,34 @@ import "time"
 import "log"
 import "github.com/satori/go.uuid"
 
-type AmountChange struct {
+type ActualTransaction struct {
     Value int
     Time time.Time
     Label string
     RawText string // raw text - might be needed, but not necessary
 }
 
-func NewAmountChange(value int, t time.Time, label, raw string) *AmountChange {
-    amount := &AmountChange{ Value: value,
+func NewActualTransaction(value int, t time.Time, label, raw string) *ActualTransaction {
+    amount := &ActualTransaction{ Value: value,
                              Time: t,
                              Label: label,
                              RawText: raw}
     return amount
 }
 
-type MonthlyChange struct {
+type RegularTransaction struct {
     Value, Date int
     Label string
 }
 
-func NewMonthlyChange(value, date int, label string) *MonthlyChange {
+func NewRegularTransaction(value, date int, label string) *RegularTransaction {
     if date < 1 || date > 28 {
         panic("Date for monthly change is out of borders")
     }
-    change := &MonthlyChange{ Value: value,
-                              Date: date,
-                              Label: label}
-    return change
+    transaction := &RegularTransaction{ Value: value,
+                                        Date: date,
+                                        Label: label}
+    return transaction
 }
 
 
