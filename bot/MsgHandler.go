@@ -3,6 +3,7 @@ package bot
 import "gopkg.in/telegram-bot-api.v4"
 import "regexp"
 import "log"
+import "../budget"
 
 type serviceMsg struct {
     stopBot bool
@@ -39,4 +40,6 @@ type baseHandler struct {
     in_msg_chan <-chan tgbotapi.Message
     out_msg_chan chan<- tgbotapi.MessageConfig
     service_chan chan<- serviceMsg
+
+    storageconn budget.Storage
 }

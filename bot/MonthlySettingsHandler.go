@@ -25,6 +25,8 @@ func (h *monthlyHandler) register(out_msg_chan chan<- tgbotapi.MessageConfig,
     h.in_msg_chan = inCh
     h.out_msg_chan = out_msg_chan
 
+    h.storageconn = budget.CreateStorageConnection()
+
     return handlerTrigger{ cmd: "monthly",
                            in_msg_chan: inCh }
 }
@@ -98,7 +100,7 @@ func (h *monthlyHandler) run() {
             continue
         }
 
-        w, err := budget.GetStorage().GetWalletForOwner(ownerId)
+        w, err := h.storageconn.GetWalletForOwner(ownerId, true)
         if err != nil {
             log.Printf("Cannot get wallet for %s, error: %s", dumpMsgUserInfo(msg), err)
             h.out_msg_chan<- tgbotapi.NewMessage(int64(ownerId), "Cannot find your wallet. Have you entered /start ?")
@@ -106,7 +108,7 @@ func (h *monthlyHandler) run() {
         }
 
         for _, c := range(transactions) {
-            err = budget.GetStorage().AddRegularChange(*w, *c)
+            err = w.AddRegularTransaction(*c)
             if err != nil {
                 log.Printf("Cannot add regular change for wallet %s of %s with error: %s", w.ID, dumpMsgUserInfo(msg), err)
                 h.out_msg_chan<- tgbotapi.NewMessage(int64(ownerId), fmt.Sprintf("Something went wrong - cannot add planned income/expense. Please contact owner. Error: %s", err))
@@ -115,7 +117,7 @@ func (h *monthlyHandler) run() {
             }
         }
 
-        monthlyIncome, err := budget.GetStorage().GetMonthlyIncome(*w)
+        monthlyIncome, err := w.GetPlannedMonthlyIncome()
         if err != nil {
             log.Printf("Could not receive monthly income for wallet %s of %s, error: %s", w.ID, dumpMsgUserInfo(msg), err)
             h.out_msg_chan<- tgbotapi.NewMessage(int64(ownerId), fmt.Sprintf("Something went wrong - cannot get your planned monthly income. Please contact owner. Error: %s", err))
@@ -125,6 +127,6 @@ func (h *monthlyHandler) run() {
 
         log.Printf("Total monthly income for %s is %d", dumpMsgUserInfo(msg), monthlyIncome)
         h.out_msg_chan<- tgbotapi.NewMessage(int64(ownerId), fmt.Sprintf("Your planned monthly income is: %d", monthlyIncome))
-        // TODO: current monthly settings
+        // TODO: print current monthly settings
     }
 }

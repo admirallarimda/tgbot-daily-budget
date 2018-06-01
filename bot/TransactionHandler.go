@@ -21,6 +21,8 @@ func (h *transactionHandler) register(out_msg_chan chan<- tgbotapi.MessageConfig
     h.in_msg_chan = inCh
     h.out_msg_chan = out_msg_chan
 
+    h.storageconn = budget.CreateStorageConnection()
+
     return handlerTrigger{ re: re,
                            in_msg_chan: inCh }
 }
@@ -59,13 +61,13 @@ func (h *transactionHandler) run() {
 
         transaction := budget.NewActualTransaction(sign * amount, time.Now(), label, msg.Text)
         ownerId := budget.OwnerId(msg.Chat.ID)
-        wallet, err := budget.GetStorage().GetWalletForOwner(ownerId)
+        wallet, err := budget.GetWalletForOwner(ownerId, true, h.storageconn)
         if err != nil {
             log.Printf("Could not get wallet for %s with error: %s", dumpMsgUserInfo(msg), err)
             continue
         }
 
-        err = budget.GetStorage().AddActualTransaction(*wallet, *transaction)
+        err = wallet.AddTransaction(*transaction)
         if err != nil {
             log.Printf("Could not add expence for %s with wallet %s due to error: %s", dumpMsgUserInfo(msg), wallet.ID, err)
             continue
@@ -73,7 +75,7 @@ func (h *transactionHandler) run() {
 
         log.Printf("Expense of %d has been successfully added to wallet %s for %s", transaction.Value, wallet.ID, dumpMsgUserInfo(msg))
 
-        availMoney, err := getCurrentAvailableAmount(ownerId, time.Now())
+        availMoney, err := wallet.GetBalance()
         if err == nil {
             h.out_msg_chan<- tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("Currently available money: %d", availMoney))
         }

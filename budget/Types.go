@@ -1,8 +1,6 @@
 package budget
 
 import "time"
-import "log"
-import "github.com/satori/go.uuid"
 
 type ActualTransaction struct {
     Value int
@@ -32,21 +30,6 @@ func NewRegularTransaction(value, date int, label string) *RegularTransaction {
                                         Date: date,
                                         Label: label}
     return transaction
-}
-
-
-type Wallet struct {
-    ID uuid.UUID
-}
-
-func NewWallet() *Wallet {
-    id, err := uuid.NewV4()
-    if err != nil {
-        log.Printf("Could not create new wallet due to error: %s", err)
-        return nil
-    }
-    wallet := &Wallet{ ID: id }
-    return wallet
 }
 
 type OwnerId int64

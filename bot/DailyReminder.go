@@ -16,12 +16,14 @@ func (d *dailyReminder) register(out_msg_chan chan<- tgbotapi.MessageConfig,
                                  service_chan chan<- serviceMsg) handlerTrigger {
     d.out_msg_chan = out_msg_chan
 
+    d.storageconn = budget.CreateStorageConnection()
+
     return handlerTrigger{}
 }
 
 
 func (d *dailyReminder) run() {
-    ownerDataMap, err := budget.GetStorage().GetAllOwners()
+    ownerDataMap, err := d.storageconn.GetAllOwners()
     if err != nil {
         log.Panicf("Cannot start daily reminder as it is impossible to get owner data due to error: %s", err)
     }
@@ -69,7 +71,12 @@ func (d *dailyReminder) run() {
 
             log.Printf("Sending daily notifications for users with notification time at %s", t1)
             for _, owner := range reminderTimeOwners[t] {
-                availMoney, err := getCurrentAvailableAmount(owner, now)
+                wallet, err := budget.GetWalletForOwner(owner, false, d.storageconn)
+                if err != nil {
+                    log.Printf("Could not get wallet for owner %d with error: %s", owner, err)
+                    continue
+                }
+                availMoney, err := wallet.GetBalance()
                 if err == nil {
                     d.out_msg_chan<- tgbotapi.NewMessage(int64(owner), fmt.Sprintf("Currently available money: %d", availMoney))
                 }
