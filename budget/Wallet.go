@@ -58,7 +58,7 @@ func (w *Wallet) GetPlannedMonthlyIncome() (int, error) {
     log.Printf("Calculating planned monthly income for wallet '%s'", w.ID)
     transactions, err := w.storage.GetRegularTransactions(w.ID)
     if err != nil {
-        log.Print("Could not get monthly transactions for wallet '%s', error: %s", w.ID, err)
+        log.Printf("Could not get monthly transactions for wallet '%s', error: %s", w.ID, err)
         return 0, err
     }
 
@@ -93,7 +93,7 @@ func (w *Wallet) GetActualMonthlyIncomeTillDate(t time.Time) (int, error) {
 
     regularTransactions, err := w.storage.GetRegularTransactions(w.ID)
     if err != nil {
-        log.Print("Could not get regular transactions for wallet '%s', error: %s", w.ID, err)
+        log.Printf("Could not get regular transactions for wallet '%s', error: %s", w.ID, err)
         return 0, err
     }
     regularTransactionsLabeled := make(map[string]int, len(regularTransactions))
