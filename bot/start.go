@@ -102,7 +102,7 @@ func run(updates *tgbotapi.UpdatesChannel,
                 log.Printf("Received reply")
                 _, err := bot.Send(msg)
                 if err != nil {
-                    log.Printf("Could not sent reply %+v due to error: %s", err)
+                    log.Printf("Could not sent reply %+v due to error: %s", msg, err)
                 }
                 continue
             case _ = <- channels.service_chan:
