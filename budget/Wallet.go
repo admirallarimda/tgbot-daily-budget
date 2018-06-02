@@ -88,8 +88,8 @@ func calcCurMonthBorders(walletMonthStartDay int, now time.Time) (time.Time, tim
     return monthStart, monthEnd
 }
 
-func (w *Wallet) GetActualMonthlyIncomeTillDate(t time.Time) (int, error) {
-    log.Printf("Calculating monthly income for wallet '%s' till time %s", w.ID, t)
+func (w *Wallet) GetActualMonthlyIncome() (int, error) {
+    log.Printf("Calculating monthly income for wallet '%s'", w.ID)
 
     regularTransactions, err := w.storage.GetRegularTransactions(w.ID)
     if err != nil {
@@ -119,7 +119,7 @@ func (w *Wallet) GetActualMonthlyIncomeTillDate(t time.Time) (int, error) {
         label := transaction.Label
         value := transaction.Value
         if regularValue, regularFound := regularTransactionsLabeled[label]; regularFound {
-            log.Printf("Found a transaction labeled '%s' which replaces value %d -> %d", label, regularValue, value)
+            log.Printf("Found a transaction labeled '%s' which replaces value %d -> %d (in addition to other same labeled transactions)", label, regularValue, value)
             monthly += value
             regularReplacedWithActual[label] = true
         } else if value > 0 {
@@ -138,6 +138,18 @@ func (w *Wallet) GetActualMonthlyIncomeTillDate(t time.Time) (int, error) {
         monthly += value
     }
     log.Printf("Final montly income is: %d", monthly)
+
+    return monthly, nil
+}
+
+func (w *Wallet) GetActualMonthlyIncomeTillDate(t time.Time) (int, error) {
+    log.Printf("Calculating monthly income for wallet '%s' till time %s", w.ID, t)
+
+    monthly, err := w.GetActualMonthlyIncome()
+    if err != nil {
+        log.Printf("Could not calculate monthly income for wallet '%s' due to error: %s", w.ID, err)
+        return 0, err
+    }
 
     var result float32 = 0
     // calculating result based on hoe many days have passed considering whether we've reached the end of prev month
