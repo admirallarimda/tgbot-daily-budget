@@ -71,7 +71,7 @@ func setupHandlers(channels botChannels) []handlerTrigger {
 
     triggers = addHandler(&startHandler{}, "start", channels, triggers)
     triggers = addHandler(&transactionHandler{}, "transaction", channels, triggers)
-    triggers = addHandler(&monthlyHandler{}, "monthly wallet settings", channels, triggers)
+    triggers = addHandler(&regularTransactionHandler{}, "regular transactions", channels, triggers)
     triggers = addHandler(&dailyReminder{}, "daily wallet status notification", channels, triggers)
     triggers = addHandler(&settingsHandler{}, "wallet settings", channels, triggers)
 

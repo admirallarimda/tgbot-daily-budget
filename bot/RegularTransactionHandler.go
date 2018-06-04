@@ -13,13 +13,13 @@ var expenseRe *regexp.Regexp = regexp.MustCompile("expense (\\d+)")
 var dateRe *regexp.Regexp = regexp.MustCompile("date (\\d{1,2})")
 var labelRe *regexp.Regexp = regexp.MustCompile("#([\\wA-Za-zА-Яа-я]+)")
 
-const example = "/monthly income 2000 date 20 #label"
+const example = "/regular income 2000 date 20 #label"
 
-type monthlyHandler struct {
+type regularTransactionHandler struct {
     baseHandler
 }
 
-func (h *monthlyHandler) register(out_msg_chan chan<- tgbotapi.MessageConfig,
+func (h *regularTransactionHandler) register(out_msg_chan chan<- tgbotapi.MessageConfig,
                                   service_chan chan<- serviceMsg) handlerTrigger {
     inCh := make(chan tgbotapi.Message, 0)
     h.in_msg_chan = inCh
@@ -27,11 +27,11 @@ func (h *monthlyHandler) register(out_msg_chan chan<- tgbotapi.MessageConfig,
 
     h.storageconn = budget.CreateStorageConnection()
 
-    return handlerTrigger{ cmd: "monthly",
+    return handlerTrigger{ cmd: "regular",
                            in_msg_chan: inCh }
 }
 
-func (h *monthlyHandler) run() {
+func (h *regularTransactionHandler) run() {
     for msg := range h.in_msg_chan {
         text := msg.Text
 
