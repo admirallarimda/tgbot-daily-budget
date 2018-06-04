@@ -214,3 +214,17 @@ func (w * Wallet) GetBalance() (int, error) {
     log.Printf("Currently available money for wallet '%s': %d (income: %d; expenses: %d)", w.ID, availMoney, curAvailIncome, curExpenses)
     return availMoney, nil
 }
+
+func (w *Wallet) SetMonthStart(date int) error {
+    if date < 1 || date > 28 {
+        panic("Date is out of range")
+    }
+    oldDate := w.MonthStart
+    w.MonthStart = date
+    err := w.storage.SetWalletInfo(w.ID, w.MonthStart)
+    if err != nil {
+        log.Printf("Could not update wallet '%s' date from %d to %d. Reverting to oiginal value", w.ID, oldDate, date)
+        w.MonthStart = oldDate
+    }
+    return err
+}

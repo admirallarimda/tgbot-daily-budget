@@ -86,3 +86,8 @@ func (s *ramStorage) GetAllOwners() (map[OwnerId]OwnerData, error) {
     // TODO: implement
     return nil, nil
 }
+
+func (s *ramStorage) SetWalletInfo(w WalletId, monthStart int) error {
+    // TODO: implement
+    return nil
+}

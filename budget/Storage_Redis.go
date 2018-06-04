@@ -22,6 +22,7 @@ var daysInMonth = map[time.Month]int {  time.January: 31,
                                         time.November: 30,
                                         time.December: 31 }
 
+const defaultMonthStart = 1
 
 type RedisStorage struct {
     client *redis.Client
@@ -259,8 +260,23 @@ func (s *RedisStorage) GetWalletForOwner(ownerId OwnerId, createIfAbsent bool) (
         return s.CreateWalletOwner(ownerId)
     }
 
-    // TODO: load month start from Redis (after we're able to set it)
-    return NewWalletFromStorage(walletId, 1, s), nil
+    walletKey := keyWallet(WalletId(walletId))
+    fields, err := s.client.HGetAll(walletKey).Result()
+    if err != nil {
+        log.Printf("Could not get wallet fields via key '%s'", walletKey)
+        return nil, err
+    }
+    monthStart := defaultMonthStart
+    monthStartStr, found := fields["monthStart"]
+    if found {
+        monthStart, err = strconv.Atoi(monthStartStr)
+        if err != nil {
+            log.Printf("Could not convert month start %s for wallet '%s' due to error: %s", monthStartStr, walletKey, err)
+            return nil, err
+        }
+    }
+
+    return NewWalletFromStorage(walletId, monthStart, s), nil
 }
 
 func (s *RedisStorage) attachWalletToUser(ownerKey string, walletId string) error {
@@ -285,28 +301,28 @@ func (s *RedisStorage) CreateWalletOwner(ownerId OwnerId) (*Wallet, error) {
         return nil, errors.New("Owner exists")
     }
 
-    walletId, err := s.createWallet()
+    wallet, err := s.createWallet()
     if err != nil {
         log.Printf("Could not create wallet for owner %d with error: %s", ownerId, err)
         return nil, err
     }
-    log.Printf("Wallet %s has been created for owner %d", walletId, ownerId)
+    log.Printf("Wallet %s has been created for owner %d", wallet.ID, ownerId)
 
-    s.attachWalletToUser(key, walletId)
+    s.attachWalletToUser(key, string(wallet.ID))
 
-    return NewWalletFromStorage(walletId, 1, s), nil
+    return wallet, nil
 }
 
-func (s *RedisStorage) createWallet() (string, error) {
-    final_id := ""
-    for final_id == "" {
+func (s *RedisStorage) createWallet() (*Wallet, error) {
+    var wallet *Wallet = nil
+    for wallet == nil {
         id, err := uuid.NewV4()
         if err != nil {
             log.Printf("Could get new wallet UUID due to error: %s", err)
-            return "", err
+            return nil, err
         }
 
-        key := fmt.Sprintf("wallet:%s", id.String())
+        key := keyWallet(WalletId(id.String()))
         log.Printf("Checking if wallet with key %s exists", key)
         result := s.client.HGetAll(key)
         if result != nil && len(result.Val()) > 0 {
@@ -316,11 +332,11 @@ func (s *RedisStorage) createWallet() (string, error) {
 
         log.Printf("Wallet with key %s doesn't exist, using it", key)
         s.client.HSet(key, "created", time.Now().Unix())
-        // TODO: add month start to Redis
-        final_id = id.String()
+        s.client.HSet(key, "monthStart", defaultMonthStart)
+        wallet = NewWalletFromStorage(id.String(), defaultMonthStart, s)
     }
 
-    return final_id, nil
+    return wallet, nil
 }
 
 func parseOwnerData(data map[string]string) OwnerData {
@@ -378,4 +394,11 @@ func (s *RedisStorage) GetAllOwners() (map[OwnerId]OwnerData, error) {
         }
     }
     return resultMap, nil
+}
+
+func (s *RedisStorage) SetWalletInfo(w WalletId, monthStart int) error {
+    key := keyWallet(w)
+    fields := make(map[string]interface{}, 3)
+    fields["monthStart"] = monthStart
+    return s.setHash(key, fields)
 }

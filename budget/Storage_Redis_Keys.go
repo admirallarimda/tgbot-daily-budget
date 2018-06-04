@@ -14,6 +14,10 @@ func keyRegularTransaction(wId WalletId, operation string, regularDate int, addD
     return fmt.Sprintf("wallet:%s:monthly:%s:%d:%d", wId, operation, regularDate, addDateUnix)
 }
 
+func keyWallet(wId WalletId) string {
+    return fmt.Sprintf("wallet:%s", wId)
+}
+
 func scannerRegularTransactions(wId WalletId) string {
     return fmt.Sprintf("wallet:%s:monthly:*", wId)
 }

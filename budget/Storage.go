@@ -15,4 +15,5 @@ type Storage interface {
     AddRegularTransaction(w WalletId, val RegularTransaction) error
 
     GetAllOwners() (map[OwnerId]OwnerData, error)
+    SetWalletInfo(w WalletId, monthStart int) error
 }
