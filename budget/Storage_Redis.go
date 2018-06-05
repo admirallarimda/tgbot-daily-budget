@@ -105,6 +105,49 @@ func (s *RedisStorage) AddRegularTransaction(w WalletId, t RegularTransaction) e
     return s.setHash(key, fields)
 }
 
+func (s *RedisStorage) RemoveRegularTransaction(w WalletId, t RegularTransaction) error {
+    scanner := scannerRegularTransactions(w)
+    keys, err := s.getAllKeys(scanner)
+    if err != nil {
+        log.Printf("Could not scan for scanner '%s' due to error: %s", scanner, err)
+    }
+    targetKey := ""
+    for _, key := range keys {
+        keyParts := strings.Split(key, ":")
+        dateStr := keyParts[4]
+        if dateStr != strconv.Itoa(t.Date) {
+            // it's not the key we're looking for
+            continue
+        }
+        fields, err := s.client.HGetAll(key).Result()
+        if err != nil {
+            log.Printf("Could not get fields for key '%s' during regular transaction removal due to error: %s", w, err)
+            return err
+        }
+        if t.Label == fields["label"] && strconv.Itoa(t.Value) == fields["value"] {
+            targetKey = key
+            break
+        }
+    }
+
+    if targetKey == "" {
+        log.Printf("No transaction in Redis found for wallet '%s' for transaction removal", w)
+        return errors.New("Specified transaction has not been found in DB")
+    }
+
+    log.Printf("Removing transaction with key '%s'", targetKey)
+    count, err := s.client.Del(targetKey).Result()
+    if err != nil {
+        log.Printf("Could not remove transaction with key '%s' due to error: %s", targetKey, err)
+        return err
+    }
+    if count != 1 {
+        log.Printf("Incorrectly removed transaction with key '%s' - removed %d records instead of 1", targetKey, count)
+        return errors.New("Incorrect number of transactions have been removed")
+    }
+    return nil
+}
+
 func (s *RedisStorage) GetRegularTransactions(w WalletId) ([]*RegularTransaction, error) {
     log.Printf("Getting regular wallet transactions for wallet '%s'", w)
 
@@ -184,6 +227,7 @@ func (s *RedisStorage) getAllKeys(matchPattern string) ([]string, error) {
             break
         }
     }
+    log.Printf("Scanner '%s' returned %s keys", matchPattern, len(result))
     return result, nil
 }
 

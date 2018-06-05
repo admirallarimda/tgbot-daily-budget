@@ -83,11 +83,16 @@ func (s *ramStorage) CreateWalletOwner(ownerId OwnerId) (*Wallet, error) {
 }
 
 func (s *ramStorage) GetAllOwners() (map[OwnerId]OwnerData, error) {
-    // TODO: implement
+    panic("Not implemented")
     return nil, nil
 }
 
 func (s *ramStorage) SetWalletInfo(w WalletId, monthStart int) error {
-    // TODO: implement
+    panic("Not implemented")
+    return nil
+}
+
+func (s *ramStorage) RemoveRegularTransaction(w WalletId, t RegularTransaction) error {
+    panic("Not implemented")
     return nil
 }

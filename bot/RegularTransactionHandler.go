@@ -12,6 +12,7 @@ var incomeRe *regexp.Regexp = regexp.MustCompile("income (\\d+)")
 var expenseRe *regexp.Regexp = regexp.MustCompile("expense (\\d+)")
 var dateRe *regexp.Regexp = regexp.MustCompile("date (\\d{1,2})")
 var labelRe *regexp.Regexp = regexp.MustCompile("#([\\wA-Za-zА-Яа-я]+)")
+var removeRe *regexp.Regexp = regexp.MustCompile("(remove|delete)")
 
 const example = "/regular income 2000 date 20 #label"
 
@@ -39,6 +40,7 @@ func (h *regularTransactionHandler) run() {
         expenseMatches := expenseRe.FindStringSubmatch(text) // TODO: FindAll?
         dateMatches := dateRe.FindStringSubmatch(text)
         labelMatches := labelRe.FindStringSubmatch(text)
+        toBeRemoved := removeRe.MatchString(text)
 
         ownerId := budget.OwnerId(msg.Chat.ID)
 
@@ -108,10 +110,16 @@ func (h *regularTransactionHandler) run() {
         }
 
         for _, c := range(transactions) {
-            err = w.AddRegularTransaction(*c)
+            var err error = nil
+            if toBeRemoved {
+                err = w.RemoveRegularTransaction(*c)
+            } else {
+                err = w.AddRegularTransaction(*c)
+            }
+
             if err != nil {
-                log.Printf("Cannot add regular change for wallet %s of %s with error: %s", w.ID, dumpMsgUserInfo(msg), err)
-                h.out_msg_chan<- tgbotapi.NewMessage(int64(ownerId), fmt.Sprintf("Something went wrong - cannot add planned income/expense. Please contact owner. Error: %s", err))
+                log.Printf("Cannot process regular change for wallet %s of %s with error: %s", w.ID, dumpMsgUserInfo(msg), err)
+                h.out_msg_chan<- tgbotapi.NewMessage(int64(ownerId), fmt.Sprintf("Something went wrong - cannot process planned income/expense. Please contact owner. Error: %s", err))
                 // TODO: automessage to owner?
                 continue
             }

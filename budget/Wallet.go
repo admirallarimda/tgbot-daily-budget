@@ -24,7 +24,7 @@ func (w *Wallet) AddTransaction(t ActualTransaction) error {
     return w.storage.AddActualTransaction(w.ID, t)
 }
 
-func checkRegularChangeLabelExist(transactions []*RegularTransaction, label string) bool {
+func checkRegularTransactionLabelExist(transactions []*RegularTransaction, label string) bool {
     for _, t := range transactions {
         if t.Label == label {
             return true
@@ -45,13 +45,38 @@ func (w *Wallet) AddRegularTransaction(t RegularTransaction) error {
         return err
     }
 
-    exists := checkRegularChangeLabelExist(transactions, t.Label)
+    exists := checkRegularTransactionLabelExist(transactions, t.Label)
     if exists {
-        log.Printf("Label '%s' already exists for wallet '%s', cannot add regular change", t.Label, w.ID)
+        log.Printf("Label '%s' already exists for wallet '%s', cannot add regular transaction", t.Label, w.ID)
         return errors.New(fmt.Sprintf("Label '%s' already exists", t.Label))
     }
 
     return w.storage.AddRegularTransaction(w.ID, t)
+}
+
+func checkRegularTransactionExactMatchExist(transactions []*RegularTransaction, t_checked RegularTransaction) bool {
+    for _, t := range transactions {
+        if *t == t_checked {
+            return true
+        }
+    }
+    return false
+}
+
+func (w *Wallet) RemoveRegularTransaction(t RegularTransaction) error {
+    transactions, err := w.storage.GetRegularTransactions(w.ID)
+    if err != nil {
+        log.Printf("Could not remove regular transactions - unable to get a list of all current regulars for wallet '%s'; error: %s", w.ID, err)
+        return err
+    }
+
+    exists := checkRegularTransactionExactMatchExist(transactions, t)
+    if !exists {
+        log.Printf("There are no exactly matched regular transaction for wallet '%s', cannot remove regular transaction", t.Label, w.ID)
+        return errors.New(fmt.Sprintf("Label '%s' already exists", t.Label))
+    }
+
+    return w.storage.RemoveRegularTransaction(w.ID, t)
 }
 
 func (w *Wallet) GetPlannedMonthlyIncome() (int, error) {
