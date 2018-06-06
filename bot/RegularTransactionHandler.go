@@ -56,7 +56,7 @@ func (h *regularTransactionHandler) showSummary(w *budget.Wallet, chatId int64) 
             expences[date] = append(expences[date], t)
         }
     }
-    uniqueInts(dates)
+    dates = uniqueInts(dates)
     sort.Ints(dates)
     incomeText := "Incomes:\n"
     expenseText := "Expenses:\n"

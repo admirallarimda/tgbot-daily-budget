@@ -10,7 +10,7 @@ func dumpMsgUserInfo(msg tgbotapi.Message) string {
                                                                                                   msg.From.UserName)
 }
 
-func uniqueInts(list []int) {
+func uniqueInts(list []int) []int {
     result := make([]int, 0, len(list))
     seen := make(map[int]bool, len(list))
     for _, i := range list {
@@ -20,5 +20,5 @@ func uniqueInts(list []int) {
         result = append(result, i)
         seen[i] = true
     }
-    list = result
+    return result
 }
