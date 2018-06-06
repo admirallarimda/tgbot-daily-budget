@@ -227,7 +227,7 @@ func (s *RedisStorage) getAllKeys(matchPattern string) ([]string, error) {
             break
         }
     }
-    log.Printf("Scanner '%s' returned %s keys", matchPattern, len(result))
+    log.Printf("Scanner '%s' returned %d keys", matchPattern, len(result))
     return result, nil
 }
 

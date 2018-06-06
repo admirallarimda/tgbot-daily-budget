@@ -72,7 +72,7 @@ func (w *Wallet) RemoveRegularTransaction(t RegularTransaction) error {
 
     exists := checkRegularTransactionExactMatchExist(transactions, t)
     if !exists {
-        log.Printf("There are no exactly matched regular transaction for wallet '%s', cannot remove regular transaction", t.Label, w.ID)
+        log.Printf("There are no exactly matched regular transaction for wallet '%s', cannot remove regular transaction", w.ID)
         return errors.New(fmt.Sprintf("Label '%s' already exists", t.Label))
     }
 
