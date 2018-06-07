@@ -262,7 +262,7 @@ func (s *RedisStorage) GetActualTransactions(w WalletId, t1, t2 time.Time) ([]*A
         }
         t := time.Unix(tUnix, 0)
         if t.After(t1) && t.Before(t2) {
-            log.Printf("Key '%s' is in our time window, getting data from it", t)
+            log.Printf("Key '%s' corresponding to date %s is in our time window, getting data from it", k, t)
             fields, err := s.client.HGetAll(k).Result()
             if err != nil {
                 log.Printf("Cannot get transaction for key '%s', error: %s", k, err)
