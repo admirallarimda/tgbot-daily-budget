@@ -44,7 +44,7 @@ func (h *lastTransactionsListHandler) run() {
                 panic("Could not convert number of transactions, though regexp should handle it correctly")
             }
         }
-        log.Printf("Going to show %d last transactions")
+        log.Printf("Going to show %d last transactions", numberOfShownTransactions)
 
         wallet, err := budget.GetWalletForOwner(ownerId, true, h.storageconn)
         if err != nil {
