@@ -76,7 +76,7 @@ func (d *dailyReminder) run() {
                     log.Printf("Could not get wallet for owner %d with error: %s", owner, err)
                     continue
                 }
-                availMoney, err := wallet.GetBalance()
+                availMoney, err := wallet.GetBalance(time.Now())
                 if err == nil {
                     d.out_msg_chan<- tgbotapi.NewMessage(int64(owner), fmt.Sprintf("Currently available money: %d", availMoney))
                 }

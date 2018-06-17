@@ -200,8 +200,8 @@ func (w *Wallet) GetMonthlyExpenseTillDate(t time.Time) (int, error) {
     log.Printf("Getting monthly expenses for wallet %s till date %s", w.ID, t)
 
     // TODO: cache results of actual transactions so we don't need to call it again
-    t1, t2 := calcCurMonthBorders(w.MonthStart, time.Now())
-    transactions, err := w.storage.GetActualTransactions(w.ID, t1, t2)
+    t1, t2 := calcCurMonthBorders(w.MonthStart, t)
+    transactions, err := w.storage.GetActualTransactions(w.ID, t1, t)
     if err != nil {
         log.Printf("Could not receive transactions due to error: %s", err)
         return 0, err
@@ -218,19 +218,17 @@ func (w *Wallet) GetMonthlyExpenseTillDate(t time.Time) (int, error) {
     return -int(totalExpense), nil // returning positive value
 }
 
-func (w * Wallet) GetBalance() (int, error) {
-    log.Printf("Starting to calculate available amount for wallet '%s'", w.ID)
-
-    now := time.Now()
+func (w * Wallet) GetBalance(t time.Time) (int, error) {
+    log.Printf("Starting to calculate available amount for wallet '%s' for time %s", w.ID, t)
 
     // getting current available money
-    curAvailIncome, err := w.GetActualMonthlyIncomeTillDate(now)
+    curAvailIncome, err := w.GetActualMonthlyIncomeTillDate(t)
     if err != nil {
         log.Printf("Unable to get current available amount due to error: %s", err)
         return 0, err
     }
 
-    curExpenses, err := w.GetMonthlyExpenseTillDate(now)
+    curExpenses, err := w.GetMonthlyExpenseTillDate(t)
     if err != nil {
         log.Printf("Unable to get current expenses due to error: %s", err)
         return 0, err

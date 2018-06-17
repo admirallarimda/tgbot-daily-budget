@@ -200,9 +200,141 @@ func TestPlannedMonthlyIncome_IncomeAndExpense_FullActualCorrelation_AdditionalI
        }
 
     if val, err := w.GetPlannedMonthlyIncome(); val != totalPlanned || err != nil {
-     t.FailNow()
+        t.FailNow()
     }
     if val, err := w.GetActualMonthlyIncome(); val != totalActual || err != nil {
-     t.FailNow()
+        t.FailNow()
     }
+}
+
+func TestAvailableAmount_NoTransactions(t * testing.T) {
+    s := NewRamStorage()
+    w, err := s.CreateWalletOwner(OwnerId(1))
+    if err != nil {
+        t.FailNow()
+    }
+
+    val, err := w.GetActualMonthlyIncomeTillDate(time.Now())
+    if err != nil {
+        t.FailNow()
+    }
+    if val != 0 {
+        t.Error(val)
+    }
+}
+
+func TestAvailableAmount_OnlyRegularTransactions(t *testing.T) {
+    s := NewRamStorage()
+    w, err := s.CreateWalletOwner(OwnerId(1))
+    if err != nil {
+        t.FailNow()
+    }
+
+    trRegPos := NewRegularTransaction(10000, 1, "pos1")
+    trRegNeg := NewRegularTransaction(-3300, 5, "neg1")
+    totalPlanned := trRegPos.Value + trRegNeg.Value
+
+    if w.AddRegularTransaction(*trRegPos) != nil || w.AddRegularTransaction(*trRegNeg) != nil {
+        t.FailNow()
+    }
+
+    t.Log("HERE STARTS a test for 31 days")
+    t_days31 := time.Date(2018, 1, 10, 0, 0, 0, 0, time.UTC)
+    val31, err := w.GetActualMonthlyIncomeTillDate(t_days31)
+    if err != nil {
+        t.FailNow()
+    }
+    expected_val31 := int(float32(totalPlanned) / 31 * 10) // 10 days from 1 (default monthStart) to t_days31
+    if val31 != expected_val31 {
+        t.Errorf("31 days: actual=%d; expected=%d", val31, expected_val31)
+    }
+
+    t.Log("HERE STARTS a test for 30 days")
+    t_days30 := time.Date(2018, 4, 3, 0, 0, 0, 0, time.UTC)
+    val30, err := w.GetActualMonthlyIncomeTillDate(t_days30)
+    if err != nil {
+        t.FailNow()
+    }
+    expected_val30 := int(float32(totalPlanned) / 30 * 3)
+    if val30 != expected_val30 {
+        t.Errorf("30 days: actual=%d; expected=%d", val30, expected_val30)
+    }
+
+    t.Log("HERE STARTS a test for 28 days")
+    t_days28 := time.Date(2018, 2, 20, 0, 0, 0, 0, time.UTC)
+    val28, err := w.GetActualMonthlyIncomeTillDate(t_days28)
+    if err != nil {
+        t.FailNow()
+    }
+    expected_val28 := int(float32(totalPlanned) / 28 * 20)
+    if val28 != expected_val28 {
+        t.Errorf("28 days: actual=%d; expected=%d", val28, expected_val28)
+    }
+
+    // TODO: correct this test when leap year is handled correctly
+    t.Log("HERE STARTS a test for 29 (leap year) days")
+    t_days29 := time.Date(2004, 2, 20, 0, 0, 0, 0, time.UTC)
+    val29, err := w.GetActualMonthlyIncomeTillDate(t_days29)
+    if err != nil {
+        t.FailNow()
+    }
+    expected_val29 := expected_val28 // to be corrected when leap year is handled correctly
+    if val29 != expected_val29 {
+        t.Errorf("29 days: actual=%d; expected=%d", val29, expected_val29)
+    }
+}
+
+func TestAvailableAmount_RegularThenActual(t *testing.T) {
+    s := NewRamStorage()
+    w, err := s.CreateWalletOwner(OwnerId(time.Now().Unix()))
+    if err != nil {
+        t.FailNow()
+    }
+
+    trRegPos := NewRegularTransaction(10000, 1, "pos1")
+    trRegNeg := NewRegularTransaction(-3300, 5, "neg1")
+    totalPlanned := float32(trRegPos.Value + trRegNeg.Value)
+
+    if w.AddRegularTransaction(*trRegPos) != nil || w.AddRegularTransaction(*trRegNeg) != nil {
+        t.FailNow()
+    }
+
+    t1 := time.Date(2018, 06, 20, 0, 0, 0, 0, time.UTC)
+    var daysInJune float32 = 30
+    trActual1 := NewActualTransaction(-500, t1, "food", "")
+    if w.AddTransaction(*trActual1) != nil {
+        t.FailNow()
+    }
+
+    tBefore := t1.Add(time.Duration(time.Hour * (-5)))
+    valBefore, err := w.GetBalance(tBefore)
+    if err != nil {
+        t.FailNow()
+    }
+    expectedValBefore := int(totalPlanned / daysInJune * float32(tBefore.Day()))
+    if valBefore != expectedValBefore {
+        t.Errorf("BEFORE mismatch: actual=%d; expected=%d", valBefore, expectedValBefore)
+    }
+
+    tAfter := t1.Add(time.Duration(time.Hour * 2))
+    valAfter, err := w.GetBalance(tAfter)
+    if err != nil {
+        t.FailNow()
+    }
+    expectedValAfter := int(totalPlanned / daysInJune * float32(tAfter.Day())) - 500
+    if valAfter != expectedValAfter {
+        t.Errorf("AFTER mismatch: actual=%d; expected=%d", valAfter, expectedValAfter)
+    }
+}
+
+func TestAvailableAmount_CorrectionAfterNewRegular(t *testing.T) {
+    t.Skip("TODO: implement")
+}
+
+func TestAvailableAmount_CorrectionAfterNewRegularWithLabelMatch(t *testing.T) {
+    t.Skip("TODO: implement (add new regular transaction after actual, and new regular matches label of an actual transaction)")
+}
+
+func TestAvailableAmount_ModifiedMonthStart_January(t *testing.T) {
+    t.Skip("TODO: implement. There's a hack for january, try monthStart 10, transactions and get amount on dates 1-10")
 }

@@ -14,8 +14,6 @@ type ramStorage struct {
     walletInfo map[WalletId] walletDetails
 
     ownerDataMap map[OwnerId]OwnerData
-
-    nextWalletId int
 }
 
 func NewRamStorage() Storage {
@@ -23,8 +21,7 @@ func NewRamStorage() Storage {
         walletTransactions: make(map[WalletId][]*ActualTransaction, 0),
         walletRegularTransactions: make(map[WalletId][]*RegularTransaction, 0),
         walletInfo: make(map[WalletId]walletDetails, 0),
-        ownerDataMap: make(map[OwnerId]OwnerData, 0),
-        nextWalletId: 1}
+        ownerDataMap: make(map[OwnerId]OwnerData, 0)}
     return storage
 }
 
@@ -74,8 +71,7 @@ func (s *ramStorage) CreateWalletOwner(ownerId OwnerId) (*Wallet, error) {
     if found {
         return nil, errors.New("Owner exists")
     }
-    wId := fmt.Sprintf("%d", s.nextWalletId)
-    s.nextWalletId++
+    wId := fmt.Sprintf("%d", ownerId)
     ownerData := OwnerData {WalletId: &wId}
     s.ownerDataMap[ownerId] = ownerData
     wallet := NewWalletFromStorage(wId, 1, s)

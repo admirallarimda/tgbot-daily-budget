@@ -75,7 +75,7 @@ func (h *transactionHandler) run() {
 
         log.Printf("Expense of %d has been successfully added to wallet %s for %s", transaction.Value, wallet.ID, dumpMsgUserInfo(msg))
 
-        availMoney, err := wallet.GetBalance()
+        availMoney, err := wallet.GetBalance(time.Now())
         if err == nil {
             h.out_msg_chan<- tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("Currently available money: %d", availMoney))
         }
