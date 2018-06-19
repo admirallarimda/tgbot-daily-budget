@@ -21,6 +21,33 @@ func (d *dailyReminder) register(out_msg_chan chan<- tgbotapi.MessageConfig,
     return handlerTrigger{}
 }
 
+func processDailyReminders(reminderTimes []int64, reminderTimeOwners map[int64][]budget.OwnerId, now time.Time) (newTimes []int64, ownersToBeNotified []budget.OwnerId) {
+    ownersToBeNotified = make([]budget.OwnerId, 0, 0)
+
+    sort.Slice(reminderTimes, func(x, y int) bool { return reminderTimes[x] < reminderTimes[y]})
+    lastNotifIx := 0
+    for i, t := range reminderTimes {
+        lastNotifIx = i
+        t1 := time.Unix(t, 0)
+        if t1.After(now) {
+            log.Printf("Will wait for reminder times finished at %s", t1)
+            break
+        }
+
+        log.Printf("Sending daily notifications for users with notification time at %s", t1)
+        for _, owner := range reminderTimeOwners[t] {
+            ownersToBeNotified = append(ownersToBeNotified, owner)
+        }
+
+        nextNotifTime := t1.Add(time.Duration(24) * time.Hour)
+        reminderTimeOwners[nextNotifTime.Unix()] = reminderTimeOwners[t]
+        delete(reminderTimeOwners, t)
+
+    }
+    reminderTimes = reminderTimes[lastNotifIx:]
+    return reminderTimes, ownersToBeNotified
+}
+
 
 func (d *dailyReminder) run() {
     ownerDataMap, err := d.storageconn.GetAllOwners()
@@ -59,36 +86,19 @@ func (d *dailyReminder) run() {
 
     // main notif cycle
     for {
-        sort.Slice(reminderTimes, func(x, y int) bool { return reminderTimes[x] < reminderTimes[y]})
-        lastNotifIx := 0
-        for i, t := range reminderTimes {
-            lastNotifIx = i
-            t1 := time.Unix(t, 0)
-            if t1.After(now) {
-                log.Printf("Will wait for reminder times finished at %s", t1)
-                break
+        var ownersToBeNotified []budget.OwnerId
+        reminderTimes, ownersToBeNotified = processDailyReminders(reminderTimes, reminderTimeOwners, time.Now())
+        for _, owner := range ownersToBeNotified {
+            wallet, err := budget.GetWalletForOwner(owner, false, d.storageconn)
+            if err != nil {
+                log.Printf("Could not get wallet for owner %d with error: %s", owner, err)
+                continue
             }
-
-            log.Printf("Sending daily notifications for users with notification time at %s", t1)
-            for _, owner := range reminderTimeOwners[t] {
-                wallet, err := budget.GetWalletForOwner(owner, false, d.storageconn)
-                if err != nil {
-                    log.Printf("Could not get wallet for owner %d with error: %s", owner, err)
-                    continue
-                }
-                availMoney, err := wallet.GetBalance(time.Now())
-                if err == nil {
-                    d.out_msg_chan<- tgbotapi.NewMessage(int64(owner), fmt.Sprintf("Currently available money: %d", availMoney))
-                }
+            availMoney, err := wallet.GetBalance(time.Now())
+            if err == nil {
+                d.out_msg_chan<- tgbotapi.NewMessage(int64(owner), fmt.Sprintf("Currently available money: %d", availMoney))
             }
-
-            nextNotifTime := t1.Add(time.Duration(24) * time.Hour)
-            reminderTimeOwners[nextNotifTime.Unix()] = reminderTimeOwners[t]
-            delete(reminderTimeOwners, t)
-
         }
-        reminderTimes = reminderTimes[lastNotifIx:]
-        log.Printf("Going to sleep. Processed %d reminders, keeping track of %d of them", lastNotifIx, len(reminderTimes))
         time.Sleep(time.Duration(1) * time.Minute)
     }
 }

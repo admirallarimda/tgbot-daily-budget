@@ -331,9 +331,9 @@ func TestAvailableAmount_RegularThenActual(t *testing.T) {
     if err != nil {
         t.FailNow()
     }
-    expectedValExect := expectedValAfter
-    if valExactTime != expectedValExect {
-        t.Errorf("EXECT mismatch: actual=%d; expected=%d", valExactTime, expectedValExect)
+    expectedValExact := expectedValAfter
+    if valExactTime != expectedValExact {
+        t.Errorf("EXACT mismatch: actual=%d; expected=%d", valExactTime, expectedValExact)
     }
 }
 
