@@ -8,6 +8,11 @@ import "gopkg.in/telegram-bot-api.v4"
 
 import "../budget"
 
+type ownerReminder struct {
+    t time.Time
+    ownerId budget.OwnerId
+}
+
 type dailyReminder struct {
     baseHandler
 }
@@ -21,31 +26,32 @@ func (d *dailyReminder) register(out_msg_chan chan<- tgbotapi.MessageConfig,
     return handlerTrigger{}
 }
 
-func processDailyReminders(reminderTimes []int64, reminderTimeOwners map[int64][]budget.OwnerId, now time.Time) (newTimes []int64, ownersToBeNotified []budget.OwnerId) {
+func processDailyReminders(reminders []ownerReminder, now time.Time) (newReminders []ownerReminder, ownersToBeNotified []budget.OwnerId) {
     ownersToBeNotified = make([]budget.OwnerId, 0, 0)
 
-    sort.Slice(reminderTimes, func(x, y int) bool { return reminderTimes[x] < reminderTimes[y]})
-    lastNotifIx := 0
-    for i, t := range reminderTimes {
-        lastNotifIx = i
-        t1 := time.Unix(t, 0)
-        if t1.After(now) {
-            log.Printf("Will wait for reminder times finished at %s", t1)
+    sort.Slice(reminders, func(x, y int) bool { return reminders[x].t.Before(reminders[y].t)})
+    lastNotifIx := -1
+    for i, reminder := range reminders {
+        t := reminder.t
+        if t.After(now) {
+            log.Printf("Will wait for reminder times finished at %s", t)
             break
         }
+        lastNotifIx = i
 
-        log.Printf("Sending daily notifications for users with notification time at %s", t1)
-        for _, owner := range reminderTimeOwners[t] {
-            ownersToBeNotified = append(ownersToBeNotified, owner)
-        }
+        log.Printf("Need to send daily notifications for user %d with notification time at %s", reminder.ownerId, t)
+        ownersToBeNotified = append(ownersToBeNotified, reminder.ownerId)
 
-        nextNotifTime := t1.Add(time.Duration(24) * time.Hour)
-        reminderTimeOwners[nextNotifTime.Unix()] = reminderTimeOwners[t]
-        delete(reminderTimeOwners, t)
-
+        nextNotifTime := t.Add(time.Duration(24) * time.Hour)
+        reminders = append(reminders, ownerReminder{t: nextNotifTime, ownerId: reminder.ownerId})
     }
-    reminderTimes = reminderTimes[lastNotifIx:]
-    return reminderTimes, ownersToBeNotified
+
+    if lastNotifIx == -1 {
+        newReminders = reminders
+    } else {
+        newReminders = reminders[lastNotifIx + 1:]
+    }
+    return
 }
 
 
@@ -57,8 +63,7 @@ func (d *dailyReminder) run() {
 
     log.Printf("Starting daily reminder using a map of %d wallet owners", len(ownerDataMap))
 
-    reminderTimes := make([]int64, 0, len(ownerDataMap))
-    reminderTimeOwners := make(map[int64][]budget.OwnerId, len(ownerDataMap))
+    reminders := make([]ownerReminder, 0, len(ownerDataMap))
     // preparing structures for sorted reminders
     now := time.Now()
     startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
@@ -69,25 +74,15 @@ func (d *dailyReminder) run() {
         }
 
         reminderTime := startOfDay.Add(durationFromMidnight)
-        if reminderTime.Before(now) { // already happened this day - let's remind about next day
-            reminderTime.Add(time.Duration(24) * time.Hour)
-        }
-
-        reminderTimeUnix := reminderTime.Unix()
-        // TODO: check whether we already have this time
-        reminderTimes = append(reminderTimes, reminderTimeUnix)
-        owners := reminderTimeOwners[reminderTimeUnix]
-        if owners == nil {
-            owners = make([]budget.OwnerId, 0, 1)
-        }
-        owners = append(owners, id)
-        reminderTimeOwners[reminderTimeUnix] = owners // TODO: do we need this operation in golang?
+        reminders = append(reminders, ownerReminder{t: reminderTime, ownerId: id})
     }
+    log.Printf("Running one 'fake' daily reminder processing in order to skip all reminders for current day")
+    reminders, _ = processDailyReminders(reminders, time.Now())
 
     // main notif cycle
     for {
         var ownersToBeNotified []budget.OwnerId
-        reminderTimes, ownersToBeNotified = processDailyReminders(reminderTimes, reminderTimeOwners, time.Now())
+        reminders, ownersToBeNotified = processDailyReminders(reminders, time.Now())
         for _, owner := range ownersToBeNotified {
             wallet, err := budget.GetWalletForOwner(owner, false, d.storageconn)
             if err != nil {
@@ -99,6 +94,6 @@ func (d *dailyReminder) run() {
                 d.out_msg_chan<- tgbotapi.NewMessage(int64(owner), fmt.Sprintf("Currently available money: %d", availMoney))
             }
         }
-        time.Sleep(time.Duration(1) * time.Minute)
+        time.Sleep(time.Minute)
     }
 }
