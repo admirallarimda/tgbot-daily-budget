@@ -325,14 +325,68 @@ func TestAvailableAmount_RegularThenActual(t *testing.T) {
     if valAfter != expectedValAfter {
         t.Errorf("AFTER mismatch: actual=%d; expected=%d", valAfter, expectedValAfter)
     }
+
+    tExact := t1
+    valExactTime, err := w.GetBalance(tExact)
+    if err != nil {
+        t.FailNow()
+    }
+    expectedValExect := expectedValAfter
+    if valExactTime != expectedValExect {
+        t.Errorf("EXECT mismatch: actual=%d; expected=%d", valExactTime, expectedValExect)
+    }
 }
 
 func TestAvailableAmount_CorrectionAfterNewRegular(t *testing.T) {
-    t.Skip("TODO: implement")
+    s := NewRamStorage()
+    w, err := s.CreateWalletOwner(OwnerId(time.Now().Unix()))
+    if err != nil {
+        t.FailNow()
+    }
+
+    trRegPos := NewRegularTransaction(3000, 1, "pos1")
+    totalPlanned := float32(trRegPos.Value)
+
+    if w.AddRegularTransaction(*trRegPos) != nil {
+        t.FailNow()
+    }
+
+    t1 := time.Date(2018, 06, 20, 0, 0, 0, 0, time.UTC)
+    var daysInJune float32 = 30
+    trActual1 := NewActualTransaction(-800, t1, "food", "")
+    if w.AddTransaction(*trActual1) != nil {
+        t.FailNow()
+    }
+
+    tAfter := t1.Add(time.Duration(time.Hour * 2))
+    valAfter, err := w.GetBalance(tAfter)
+    if err != nil {
+        t.FailNow()
+    }
+    expectedValAfter := int(totalPlanned / daysInJune * float32(tAfter.Day())) + trActual1.Value
+    if valAfter != expectedValAfter {
+        t.Errorf("AFTER mismatch: actual=%d; expected=%d", valAfter, expectedValAfter)
+    }
+
+    trRegNeg := NewRegularTransaction(-3300, 5, "neg1")
+    totalPlanned += float32(trRegNeg.Value)
+
+    if w.AddRegularTransaction(*trRegNeg) != nil {
+        t.FailNow()
+    }
+
+    valAfter, err = w.GetBalance(tAfter)
+    if err != nil {
+        t.FailNow()
+    }
+    expectedValAfter = int(totalPlanned / daysInJune * float32(tAfter.Day())) + trActual1.Value
+    if valAfter != expectedValAfter {
+        t.Errorf("AFTER mismatch: actual=%d; expected=%d", valAfter, expectedValAfter)
+    }
 }
 
 func TestAvailableAmount_CorrectionAfterNewRegularWithLabelMatch(t *testing.T) {
-    t.Skip("TODO: implement (add new regular transaction after actual, and new regular matches label of an actual transaction)")
+    t.Skip("TODO: impleminent (add new regular transaction after actual, and new regular matches label of an actual transaction)")
 }
 
 func TestAvailableAmount_ModifiedMonthStart_January(t *testing.T) {

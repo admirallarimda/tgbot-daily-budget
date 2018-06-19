@@ -55,7 +55,7 @@ func (s *ramStorage) GetActualTransactions(w WalletId, tMin, tMax time.Time) ([]
     }
     records := make([]*ActualTransaction, 0, len(allRecords))
     for _, r := range allRecords {
-        if r.Time.After(tMin) && r.Time.Before(tMax) {
+        if r.Time.After(tMin) && (r.Time.Equal(tMax) || r.Time.Before(tMax)) {
             records = append(records, r)
         }
     }
