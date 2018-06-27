@@ -79,25 +79,6 @@ func (w *Wallet) RemoveRegularTransaction(t RegularTransaction) error {
     return w.storage.RemoveRegularTransaction(w.ID, t)
 }
 
-func (w *Wallet) GetPlannedMonthlyIncome() (int, error) {
-    log.Printf("Calculating planned monthly income for wallet '%s'", w.ID)
-    transactions, err := w.storage.GetRegularTransactions(w.ID)
-    if err != nil {
-        log.Printf("Could not get monthly transactions for wallet '%s', error: %s", w.ID, err)
-        return 0, err
-    }
-
-    totalIncome := 0
-    for _, change := range transactions {
-        totalIncome += change.Value
-    }
-
-    log.Printf("Total income for wallet '%s' is %d", w.ID, totalIncome)
-
-    return totalIncome, nil
-}
-
-
 func calcCurMonthBorders(walletMonthStartDay int, now time.Time) (time.Time, time.Time) {
     if walletMonthStartDay < 1 || walletMonthStartDay > 28 {
         panic("Date must be between 1 and 28")
@@ -111,60 +92,6 @@ func calcCurMonthBorders(walletMonthStartDay int, now time.Time) (time.Time, tim
     monthEnd := monthStart.AddDate(0, 1, 0)
     log.Printf("Month borders are from %s to %s", monthStart, monthEnd)
     return monthStart, monthEnd
-}
-
-func (w *Wallet) GetActualMonthlyIncome() (int, error) {
-    log.Printf("Calculating monthly income for wallet '%s'", w.ID)
-
-    regularTransactions, err := w.storage.GetRegularTransactions(w.ID)
-    if err != nil {
-        log.Printf("Could not get regular transactions for wallet '%s', error: %s", w.ID, err)
-        return 0, err
-    }
-    regularTransactionsLabeled := make(map[string]int, len(regularTransactions))
-    for _, regularElem := range regularTransactions {
-        if regularElem.Label == "" {
-            panic("Label for regular transaction is empty")
-        }
-        regularTransactionsLabeled[regularElem.Label] = regularElem.Value
-    }
-
-    log.Printf("Month start for wallet '%s' is %d", w.ID, w.MonthStart)
-
-    t1, t2 := calcCurMonthBorders(w.MonthStart, time.Now())
-    transactions, err := w.storage.GetActualTransactions(w.ID, t1, t2)
-    if err != nil {
-        log.Printf("Could not receive transactions due to error: %s", err)
-        return 0, err
-    }
-
-    monthly := 0
-    regularReplacedWithActual := make(map[string]bool, 0)
-    for _, transaction := range transactions {
-        label := transaction.Label
-        value := transaction.Value
-        if regularValue, regularFound := regularTransactionsLabeled[label]; regularFound {
-            log.Printf("Found a transaction labeled '%s' which replaces value %d -> %d (in addition to other same labeled transactions)", label, regularValue, value)
-            monthly += value
-            regularReplacedWithActual[label] = true
-        } else if value > 0 {
-            log.Printf("Found a transaction labeled '%s' with positive income %d, using it for monthly income calculation", label, value)
-            monthly += value
-        } // else value <= 0 { log.Printf("Skipping transaction labeled '%s' with negative value %d", label, value) }
-    }
-
-    // adding those regular transactions which were not yet matches with an actial one
-    for label, value := range regularTransactionsLabeled {
-        if _, found := regularReplacedWithActual[label]; found {
-            log.Printf("Regular transaction labeled '%s' with value %d has already been matched by an actual transaction, skipping", label, value)
-            continue
-        }
-        log.Printf("Regular transaction labeled '%s' with value %d will be used for monthly income calculation", label, value)
-        monthly += value
-    }
-    log.Printf("Final montly income is: %d", monthly)
-
-    return monthly, nil
 }
 
 func (w *Wallet) GetActualMonthlyIncomeTillDate(t time.Time) (int, error) {
@@ -195,46 +122,77 @@ func (w *Wallet) GetActualMonthlyIncomeTillDate(t time.Time) (int, error) {
     return int(result), nil
 }
 
+func (w *Wallet) getRegularTransactions() ([]RegularTransaction, error) {
+    transactions, err := w.storage.GetRegularTransactions(w.ID)
+    if err != nil {
+        return nil, err
+    }
+    return transactions, nil
+}
 
-func (w *Wallet) GetMonthlyExpenseTillDate(t time.Time) (int, error) {
-    log.Printf("Getting monthly expenses for wallet %s till date %s", w.ID, t)
-
+func (w *Wallet) getActualTransactionsForCurrentMonthTillDate(t time.Time) ([]ActualTransaction, error) {
     // TODO: cache results of actual transactions so we don't need to call it again
     t1, t2 := calcCurMonthBorders(w.MonthStart, t)
     transactions, err := w.storage.GetActualTransactions(w.ID, t1, t)
     if err != nil {
-        log.Printf("Could not receive transactions due to error: %s", err)
-        return 0, err
+        return nil, err
     }
-
-    var totalExpense int = 0
-    for _, t := range transactions {
-        if t.Value < 0 {
-            totalExpense += t.Value
-        }
-    }
-
-    log.Printf("Calculated total expense %d for wallet '%s' from %s till %s", totalExpense, w.ID, t1, t2)
-    return -int(totalExpense), nil // returning positive value
+    return transactions, nil
 }
 
-func (w * Wallet) GetBalance(t time.Time) (int, error) {
+func accumulateMatchedTransactions(regular_txs []RegularTransaction, actual_txs []ActualTransaction) map[string]int {
+    // finds which actual transactions correspond to the regulars
+    log.Printf("Calculating monthly income for wallet '%s'", w.ID)
+
+    regularTransactionsLabeled := make(map[string]bool, len(regular_txs))
+    for _, regularElem := range regularTransactions {
+        if regularElem.Label == "" {
+            panic("Label for regular transaction is empty")
+        }
+        regularTransactionsLabeled[regularElem.Label] = true
+    }
+
+    matched := make(map[string][]ActualTransaction, len(regular_txs))
+    for _, actual := range actual_txs {
+        label := actual.Label
+        if label == "" {
+            continue
+        }
+        if _, found := regularTransactionsLabeled[label]; !found {
+            continue
+        }
+        // here we have a match - actual transaction has same label as a regular
+        matched[label] += actual.Value
+    }
+    return matched
+}
+
+func (w *Wallet) calcMonthlyIncomeTillDate(regular_txs []RegularTransaction, matched_actual_txs map[string], t time.Time) int {
+
+}
+
+func (w *Wallet) GetBalance(t time.Time) (int, error) {
     log.Printf("Starting to calculate available amount for wallet '%s' for time %s", w.ID, t)
 
-    // getting current available money
-    curAvailIncome, err := w.GetActualMonthlyIncomeTillDate(t)
+    regular_txs, err := w.getRegularTransactions()
     if err != nil {
-        log.Printf("Unable to get current available amount due to error: %s", err)
+        log.Printf("Unable to get regular transactions for wallet '%s'", w.ID)
         return 0, err
     }
+    log.Printf("There are %d regular transactions for wallet '%s'", len(regular_txs), w.ID)
 
-    curExpenses, err := w.GetMonthlyExpenseTillDate(t)
+    actual_txs, err := w.getActualTransactionsForCurrentMonthTillDate(t)
     if err != nil {
-        log.Printf("Unable to get current expenses due to error: %s", err)
+        log.Printf("Unable to get list of actual transactions related to current month for wallet '%s' till date %s", w.ID, t)
         return 0, err
     }
-    availMoney := curAvailIncome - curExpenses
-    log.Printf("Currently available money for wallet '%s': %d (income: %d; expenses: %d)", w.ID, availMoney, curAvailIncome, curExpenses)
+    log.Printf("There are %d regular transactions for wallet '%s'", len(actual_txs), w.ID)
+
+    matched_actual_txs := accumulateMatchedTransactions(regular_txs, actual_txs)
+    curAvailIncome := w.calcMonthlyIncomeTillDate(regular_txs, matched_actual_txs, t)
+    unmatchedTrxSum := w.calcUnmatchedTransactionsSum(actual_txs, matched_actual_txs)
+    availMoney := curAvailIncome + unmatchedTrxSum
+    log.Printf("Currently available money for wallet '%s': %d (matched with regular: %d; unmatched: %d)", w.ID, availMoney, curAvailIncome, unmatchedTrxSum)
     return availMoney, nil
 }
 
