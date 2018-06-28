@@ -55,6 +55,24 @@ func (w *Wallet) AddRegularTransaction(t RegularTransaction) error {
     return w.storage.AddRegularTransaction(w.ID, t)
 }
 
+func (w *Wallet) GetPlannedMonthlyIncome() (int, error) {
+    log.Printf("Calculating planned monthly income for wallet '%s'", w.ID)
+    transactions, err := w.storage.GetRegularTransactions(w.ID)
+    if err != nil {
+        log.Printf("Could not get monthly transactions for wallet '%s', error: %s", w.ID, err)
+        return 0, err
+    }
+
+    totalIncome := 0
+    for _, change := range transactions {
+        totalIncome += change.Value
+    }
+
+    log.Printf("Total income for wallet '%s' is %d", w.ID, totalIncome)
+
+    return totalIncome, nil
+}
+
 func checkRegularTransactionExactMatchExist(transactions []*RegularTransaction, t_checked RegularTransaction) bool {
     for _, t := range transactions {
         if *t == t_checked {
