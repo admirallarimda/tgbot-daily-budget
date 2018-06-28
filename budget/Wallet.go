@@ -133,7 +133,7 @@ func (w *Wallet) getActualTransactionsForCurrentMonthTillDate(t time.Time) ([]*A
 
 func accumulateMatchedTransactions(regular_txs []*RegularTransaction, actual_txs []*ActualTransaction) map[string]int {
     // finds which actual transactions correspond to the regulars
-    log.Printf("Accumulating matched transactions for a list of regulars[size %d and actuals[size %d]]", len(regular_txs), len(actual_txs))
+    log.Printf("Accumulating matched transactions for a list of regulars[size %d] and actuals[size %d]", len(regular_txs), len(actual_txs))
 
     regularTransactionsLabeled := make(map[string]bool, len(regular_txs))
     for _, regularElem := range regular_txs {
