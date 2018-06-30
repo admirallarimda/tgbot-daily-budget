@@ -25,7 +25,7 @@ func (w *Wallet) AddTransaction(t ActualTransaction) error {
     return w.storage.AddActualTransaction(w.ID, t)
 }
 
-func checkRegularTransactionLabelExist(transactions []*RegularTransaction, label string) bool {
+func checkRegularTransactionLabelExist(transactions []RegularTransaction, label string) bool {
     for _, t := range transactions {
         if t.Label == label {
             return true
@@ -73,9 +73,9 @@ func (w *Wallet) GetPlannedMonthlyIncome() (int, error) {
     return totalIncome, nil
 }
 
-func checkRegularTransactionExactMatchExist(transactions []*RegularTransaction, t_checked RegularTransaction) bool {
+func checkRegularTransactionExactMatchExist(transactions []RegularTransaction, t_checked RegularTransaction) bool {
     for _, t := range transactions {
-        if *t == t_checked {
+        if t == t_checked {
             return true
         }
     }
@@ -113,57 +113,41 @@ func calcCurMonthBorders(walletMonthStartDay int, now time.Time) (time.Time, tim
     return monthStart, monthEnd
 }
 
-func (w *Wallet) getRegularTransactions() ([]*RegularTransaction, error) {
+func (w *Wallet) loadRegularTransactions(txs *transactionCollection) error {
     transactions, err := w.storage.GetRegularTransactions(w.ID)
     if err != nil {
-        return nil, err
+        return err
     }
-    return transactions, nil
+    txs.regular_txs = transactions
+    log.Printf("Loaded %d regular transactions for wallet '%s'", len(txs.regular_txs), w.ID)
+    return nil
 }
 
-func (w *Wallet) getActualTransactionsForCurrentMonthTillDate(t time.Time) ([]*ActualTransaction, error) {
+func (w *Wallet) loadActualTransactionsForCurrentMonthTillDate(t time.Time, txs *transactionCollection) error {
     // TODO: cache results of actual transactions so we don't need to call it again
     t1, _ := calcCurMonthBorders(w.MonthStart, t)
     transactions, err := w.storage.GetActualTransactions(w.ID, t1, t)
     if err != nil {
-        return nil, err
+        return err
     }
-    return transactions, nil
+    txs.actual_txs = transactions
+    log.Printf("Loaded %d actual transactions for wallet '%s'", len(txs.actual_txs), w.ID)
+    return nil
 }
 
-func accumulateMatchedTransactions(regular_txs []*RegularTransaction, actual_txs []*ActualTransaction) map[string]int {
-    // finds which actual transactions correspond to the regulars
-    log.Printf("Accumulating matched transactions for a list of regulars[size %d] and actuals[size %d]", len(regular_txs), len(actual_txs))
-
-    regularTransactionsLabeled := make(map[string]bool, len(regular_txs))
-    for _, regularElem := range regular_txs {
-        if regularElem.Label == "" {
-            panic("Label for regular transaction is empty")
-        }
-        regularTransactionsLabeled[regularElem.Label] = true
-    }
-
-    matched := make(map[string]int, len(regular_txs))
-    for _, actual := range actual_txs {
-        label := actual.Label
-        if label == "" {
-            continue
-        }
-        if _, found := regularTransactionsLabeled[label]; !found {
-            continue
-        }
-        // here we have a match - actual transaction has same label as a regular
-        matched[label] += actual.Value
-    }
-    return matched
-}
-
-func (w *Wallet) calcMonthlyIncomeTillDate(regular_txs []*RegularTransaction, matched_actual_txs map[string]int, t time.Time) int {
+func (w *Wallet) calcMonthlyIncomeTillDate(txs transactionCollection, t time.Time) int {
     // calculation of supposedly received income till current date.
     // If there are actual transaction which match planned via labels, final result differs depending on income/expense and its value
+    regular_txs := txs.getRegularTransactions()
+    matched_actual_txs := txs.getMatchedActualTransactions()
     totalMonthlyIncome := 0
+    // calculating regular depending on their matched transactions amount
     for _, tx := range regular_txs {
-        if matched_amount, found := matched_actual_txs[tx.Label]; found {
+        if matched_txs, found := matched_actual_txs[tx.Label]; found && len(matched_txs) > 0 {
+            matched_amount := 0
+            for _, matched_tx := range matched_txs {
+                matched_amount += matched_tx.Value
+            }
             if (tx.Value > 0 && matched_amount < 0) || (tx.Value < 0 && matched_amount > 0) {
                 log.Printf("Mismatched signs of regular and actual values - regular: %d; actual: %d", tx.Value, matched_amount)
                 panic("Mismatched signs for regular and its matched actual counterpart")
@@ -188,6 +172,16 @@ func (w *Wallet) calcMonthlyIncomeTillDate(regular_txs []*RegularTransaction, ma
             totalMonthlyIncome += tx.Value
         }
     }
+    log.Printf("Monthly income calc: after matching regular and actual total income equals to %d", totalMonthlyIncome)
+    // adding not planned income
+    income_txs := txs.getActualIncomeTransactions()
+    for _, income := range income_txs {
+        if _, found := matched_actual_txs[income.Label]; found {
+            // this transaction has been planned; calculated above
+            continue
+        }
+        totalMonthlyIncome += income.Value
+    }
     log.Printf("Montly income calc: total income equals to %d", totalMonthlyIncome)
     var result float32 = 0
     // calculating result based on hoe many days have passed considering whether we've reached the end of prev month
@@ -209,9 +203,11 @@ func (w *Wallet) calcMonthlyIncomeTillDate(regular_txs []*RegularTransaction, ma
     return int(result)
 }
 
-func (w *Wallet) calcUnmatchedTransactionsSum(actual_txs []*ActualTransaction, matched_actual_txs map[string]int) int {
+func (w *Wallet) calcUnmatchedExpenseSum(txs transactionCollection) int {
     sum := 0
-    for _, tx := range actual_txs {
+    expense_txs := txs.getActualExpenseTransactions()
+    matched_actual_txs := txs.getMatchedActualTransactions()
+    for _, tx := range expense_txs {
         if _, found := matched_actual_txs[tx.Label]; found {
             // this transaction has already been used for monthly income calculation, skipping it
             continue
@@ -225,23 +221,22 @@ func (w *Wallet) calcUnmatchedTransactionsSum(actual_txs []*ActualTransaction, m
 func (w *Wallet) GetBalance(t time.Time) (int, error) {
     log.Printf("Starting to calculate available amount for wallet '%s' for time %s", w.ID, t)
 
-    regular_txs, err := w.getRegularTransactions()
+    txs := newTransactionCollection()
+
+    err := w.loadRegularTransactions(txs)
     if err != nil {
         log.Printf("Unable to get regular transactions for wallet '%s'", w.ID)
         return 0, err
     }
-    log.Printf("There are %d regular transactions for wallet '%s'", len(regular_txs), w.ID)
 
-    actual_txs, err := w.getActualTransactionsForCurrentMonthTillDate(t)
+    err = w.loadActualTransactionsForCurrentMonthTillDate(t, txs)
     if err != nil {
         log.Printf("Unable to get list of actual transactions related to current month for wallet '%s' till date %s", w.ID, t)
         return 0, err
     }
-    log.Printf("There are %d regular transactions for wallet '%s'", len(actual_txs), w.ID)
 
-    matched_actual_txs := accumulateMatchedTransactions(regular_txs, actual_txs)
-    curAvailIncome := w.calcMonthlyIncomeTillDate(regular_txs, matched_actual_txs, t)
-    unmatchedTrxSum := w.calcUnmatchedTransactionsSum(actual_txs, matched_actual_txs)
+    curAvailIncome := w.calcMonthlyIncomeTillDate(*txs, t)
+    unmatchedTrxSum := w.calcUnmatchedExpenseSum(*txs)
     availMoney := curAvailIncome + unmatchedTrxSum
     log.Printf("Currently available money for wallet '%s': %d (matched with regular: %d; unmatched: %d)", w.ID, availMoney, curAvailIncome, unmatchedTrxSum)
     return availMoney, nil

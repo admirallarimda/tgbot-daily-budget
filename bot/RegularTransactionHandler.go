@@ -44,8 +44,8 @@ func (h *regularTransactionHandler) showSummary(w *budget.Wallet, chatId int64) 
         h.out_msg_chan<- tgbotapi.NewMessage(chatId, fmt.Sprintf("Could not load list of regular transactions"))
         return
     }
-    incomes := make(map[int][]*budget.RegularTransaction, len(transactions))
-    expences := make(map[int][]*budget.RegularTransaction, len(transactions))
+    incomes := make(map[int][]budget.RegularTransaction, len(transactions))
+    expences := make(map[int][]budget.RegularTransaction, len(transactions))
     dates := make([]int, 0, len(transactions))
     for _, t := range transactions {
         date := t.Date
