@@ -12,9 +12,9 @@ type Storage interface {
     SetWalletInfo(w WalletId, monthStart int) error
 
     AddActualTransaction(w WalletId, val ActualTransaction) error
-    GetActualTransactions(w WalletId, tMin, tMax time.Time) ([]*ActualTransaction, error)
+    GetActualTransactions(w WalletId, tMin, tMax time.Time) ([]ActualTransaction, error)
 
     AddRegularTransaction(w WalletId, val RegularTransaction) error
-    GetRegularTransactions(w WalletId) ([]*RegularTransaction, error)
+    GetRegularTransactions(w WalletId) ([]RegularTransaction, error)
     RemoveRegularTransaction(w WalletId, t RegularTransaction) error
 }

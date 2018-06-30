@@ -148,10 +148,10 @@ func (s *RedisStorage) RemoveRegularTransaction(w WalletId, t RegularTransaction
     return nil
 }
 
-func (s *RedisStorage) GetRegularTransactions(w WalletId) ([]*RegularTransaction, error) {
+func (s *RedisStorage) GetRegularTransactions(w WalletId) ([]RegularTransaction, error) {
     log.Printf("Getting regular wallet transactions for wallet '%s'", w)
 
-    result := make([]*RegularTransaction, 0, 10)
+    result := make([]RegularTransaction, 0, 10)
 
     repeatedKeysGuard := make(map[string]bool, 0)
     scanMatch := scannerRegularTransactions(w)
@@ -194,7 +194,7 @@ func (s *RedisStorage) GetRegularTransactions(w WalletId) ([]*RegularTransaction
                 return nil, err
             }
 
-            result = append(result, NewRegularTransaction(value, date, fields["label"]))
+            result = append(result, *NewRegularTransaction(value, date, fields["label"]))
 
             repeatedKeysGuard[k] = true
         }
@@ -231,7 +231,7 @@ func (s *RedisStorage) getAllKeys(matchPattern string) ([]string, error) {
     return result, nil
 }
 
-func (s *RedisStorage) GetActualTransactions(w WalletId, t1, t2 time.Time) ([]*ActualTransaction, error) {
+func (s *RedisStorage) GetActualTransactions(w WalletId, t1, t2 time.Time) ([]ActualTransaction, error) {
     if t2.Before(t1) {
         panic("Time borders misaligned")
     }
@@ -254,7 +254,7 @@ func (s *RedisStorage) GetActualTransactions(w WalletId, t1, t2 time.Time) ([]*A
     allKeys := append(keysIn, keysOut...)
     allKeys = uniqueStringSlice(allKeys)
 
-    result := make([]*ActualTransaction, 0, len(allKeys))
+    result := make([]ActualTransaction, 0, len(allKeys))
     for _, k := range allKeys {
         tUnix, err := strconv.ParseInt(strings.Split(k, ":")[3], 10, 64)
         if err != nil {
@@ -275,7 +275,7 @@ func (s *RedisStorage) GetActualTransactions(w WalletId, t1, t2 time.Time) ([]*A
                 log.Printf("Could not convert value %s to integer, error: %s", valueStr, err)
                 return nil, err
             }
-            result = append(result, NewActualTransaction(value, t, fields["label"], ""))
+            result = append(result, *NewActualTransaction(value, t, fields["label"], ""))
         }
     }
     return result, nil
