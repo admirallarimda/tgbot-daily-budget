@@ -196,10 +196,10 @@ func (w *Wallet) calcMonthlyIncomeTillDate(txs transactionCollection, t time.Tim
         if t.Month() != time.January {
             prevMonth = t.Month() - 1
         }
-        result = float32(totalMonthlyIncome) / float32(31 - (w.MonthStart - curDay) - (31 - daysInMonth[prevMonth]))
+        result = float32(totalMonthlyIncome) / float32(daysInMonth[prevMonth]) * float32(daysInMonth[prevMonth] - w.MonthStart + 1 + curDay)
     }
 
-    log.Printf("Montly income calc: till date %s it equals to %f", t, result)
+    log.Printf("Monthly income calc: till date %s it equals to %f", t, result)
     return int(result)
 }
 
