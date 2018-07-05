@@ -62,7 +62,7 @@ func (d *dailyReminder) sendDailyAvailableBalance(owner budget.OwnerId, wallet *
 }
 
 func (d *dailyReminder) sendMonthlySummary(owner budget.OwnerId, wallet *budget.Wallet, t time.Time) {
-    summary, err := wallet.GetMonthlySummary(t.Add(time.Duration(time.Hour * 24)))
+    summary, err := wallet.GetMonthlySummary(t.Add(time.Duration(time.Hour * -24)))
     if err != nil {
         return
     }
