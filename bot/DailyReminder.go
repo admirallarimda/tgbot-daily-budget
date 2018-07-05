@@ -55,6 +55,7 @@ func processDailyReminders(reminders []ownerReminder, now time.Time) (newReminde
 }
 
 func (d *dailyReminder) sendDailyAvailableBalance(owner budget.OwnerId, wallet *budget.Wallet, t time.Time) {
+    log.Printf("Sending daily available balance to owner %d with wallet '%s'", owner, wallet.ID)
     availMoney, err := wallet.GetBalance(t)
     if err == nil {
         d.out_msg_chan<- tgbotapi.NewMessage(int64(owner), fmt.Sprintf("Rise and shine, new portion of money has arrived! Currently available money: %d", availMoney))
@@ -62,6 +63,7 @@ func (d *dailyReminder) sendDailyAvailableBalance(owner budget.OwnerId, wallet *
 }
 
 func (d *dailyReminder) sendMonthlySummary(owner budget.OwnerId, wallet *budget.Wallet, t time.Time) {
+    log.Printf("Sending monthly stats to owner %d with wallet '%s'", owner, wallet.ID)
     summary, err := wallet.GetMonthlySummary(t.Add(time.Duration(time.Hour * -24)))
     if err != nil {
         return

@@ -109,6 +109,7 @@ func calcCurMonthBorders(walletMonthStartDay int, now time.Time) (time.Time, tim
         monthStart = monthStart.AddDate(0, -1, 0)
     }
     monthEnd := monthStart.AddDate(0, 1, 0)
+    monthEnd = monthEnd.Add(time.Nanosecond * -1)
     log.Printf("Month borders are from %s to %s", monthStart, monthEnd)
     return monthStart, monthEnd
 }
