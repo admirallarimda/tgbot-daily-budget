@@ -255,3 +255,21 @@ func (w *Wallet) SetMonthStart(date int) error {
     }
     return err
 }
+
+func (w *Wallet) GetMonthlySummary(t time.Time) (*TransactionSummary, error) {
+    t1, t2 := calcCurMonthBorders(w.MonthStart, t)
+    txs := newTransactionCollection()
+    err := w.loadActualTransactionsForCurrentMonthTillDate(t2, txs)
+    if err != nil {
+        log.Printf("Could not collect transactions for summary for wallet '%s' for month associated with date %s; error: %s", w.ID, t2, err)
+        return nil, err
+    }
+
+    summary := NewTransactionSummary(t1, t2)
+
+    for _, tx := range txs.getActualExpenseTransactions() {
+        summary.ExpenseSummary[tx.Label] += tx.Value
+    }
+
+    return summary, nil
+}
