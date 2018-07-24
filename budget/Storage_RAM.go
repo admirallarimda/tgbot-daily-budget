@@ -92,3 +92,13 @@ func (s *ramStorage) RemoveRegularTransaction(w WalletId, t RegularTransaction) 
     panic("Not implemented")
     return nil
 }
+
+func (s *ramStorage) GetOwnerDailyNotificationTime(id OwnerId) (*time.Duration, error) {
+    panic("Not implemented")
+    return nil, nil
+}
+
+func (s *ramStorage) SetOwnerDailyNotificationTime(id OwnerId, notifTime *time.Duration) error {
+    panic("Not implemented")
+    return nil
+}

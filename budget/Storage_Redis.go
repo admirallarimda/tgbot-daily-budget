@@ -394,9 +394,6 @@ func parseOwnerData(data map[string]string) OwnerData {
         if err == nil {
             ownerData.DailyReminderTime = &dur
         }
-    } else {
-        dur := time.Duration(9) * time.Hour
-        ownerData.DailyReminderTime = &dur
     }
 
     return ownerData
@@ -445,4 +442,39 @@ func (s *RedisStorage) SetWalletInfo(w WalletId, monthStart int) error {
     fields := make(map[string]interface{}, 3)
     fields["monthStart"] = monthStart
     return s.setHash(key, fields)
+}
+
+func (s *RedisStorage) GetOwnerDailyNotificationTime(id OwnerId) (*time.Duration, error) {
+    k := keyOwner(id)
+
+    if exists, err := s.client.HExists(k, "dailyNotifTime").Result(); exists == false || err != nil {
+        log.Printf("Assuming that daily notification is not set (disabled) for key '%s'. Exists: %t; Error: %s", k, exists, err)
+        return nil, nil
+    }
+
+    notifTimeStr, err := s.client.HGet(k, "dailyNotifTime").Result()
+    if err != nil {
+        log.Printf("Could not get notification time for owner via key '%s' due to error: %s", k, err)
+        return nil, err
+    }
+
+    notifTime, err := time.ParseDuration(notifTimeStr)
+    if err != nil {
+        log.Printf("Could not parse notification time '%s' for owner via key '%s' due to error: %s", notifTimeStr, k, err)
+        return nil, err
+    }
+
+    return &notifTime, nil
+}
+
+func (s *RedisStorage) SetOwnerDailyNotificationTime(id OwnerId, notifTime *time.Duration) error {
+    k := keyOwner(id)
+
+    if notifTime == nil {
+        log.Printf("Removing notification time for key '%s'", k)
+        return s.client.HDel(k, "dailyNotifTime").Err()
+    }
+
+    log.Printf("Setting daily notification time for key '%s' to '%s'", k, notifTime)
+    return s.client.HSet(k, "dailyNotifTime", *notifTime).Err()
 }

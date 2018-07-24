@@ -109,12 +109,11 @@ func (d *dailyReminder) run() {
     now := time.Now()
     startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
     for id, data := range ownerDataMap {
-        durationFromMidnight := time.Duration(9) * time.Hour
-        if data.DailyReminderTime != nil {
-            durationFromMidnight = *data.DailyReminderTime
+        if data.DailyReminderTime == nil {
+            log.Printf("Owner %d doesn't have reminder settings; it will not be added into notificaiton list", id)
+            continue
         }
-
-        reminderTime := startOfDay.Add(durationFromMidnight)
+        reminderTime := startOfDay.Add(*data.DailyReminderTime)
         reminders = append(reminders, ownerReminder{t: reminderTime, ownerId: id})
     }
     log.Printf("Running one 'fake' daily reminder processing in order to skip all reminders for current day")

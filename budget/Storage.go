@@ -9,6 +9,9 @@ type Storage interface {
     CreateWalletOwner(ownerId OwnerId) (*Wallet, error)
     GetAllOwners() (map[OwnerId]OwnerData, error)
 
+    GetOwnerDailyNotificationTime(id OwnerId) (*time.Duration, error)
+    SetOwnerDailyNotificationTime(id OwnerId, notifTime *time.Duration) error
+
     SetWalletInfo(w WalletId, monthStart int) error
 
     AddActualTransaction(w WalletId, val ActualTransaction) error
