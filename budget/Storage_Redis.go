@@ -476,5 +476,5 @@ func (s *RedisStorage) SetOwnerDailyNotificationTime(id OwnerId, notifTime *time
     }
 
     log.Printf("Setting daily notification time for key '%s' to '%s'", k, notifTime)
-    return s.client.HSet(k, "dailyNotifTime", *notifTime).Err()
+    return s.client.HSet(k, "dailyNotifTime", notifTime.String()).Err()
 }
