@@ -4,6 +4,7 @@ import "log"
 import "fmt"
 import "time"
 import "sort"
+import "math"
 import "gopkg.in/telegram-bot-api.v4"
 
 import "../budget"
@@ -57,8 +58,24 @@ func processDailyReminders(reminders []ownerReminder, now time.Time) (newReminde
 func (d *dailyReminder) sendDailyAvailableBalance(owner budget.OwnerId, wallet *budget.Wallet, t time.Time) {
     log.Printf("Sending daily available balance to owner %d with wallet '%s'", owner, wallet.ID)
     availMoney, err := wallet.GetBalance(t)
-    if err == nil {
-        d.out_msg_chan<- tgbotapi.NewMessage(int64(owner), fmt.Sprintf("Rise and shine, new portion of money has arrived! Currently available money: %d", availMoney))
+    if err != nil {
+        log.Printf("Could not get balance for wallet '%s' due to error: %s", wallet.ID, err)
+        return
+    }
+    monthSplit := budget.SplitWalletMonth(t, wallet.MonthStart)
+    msg := fmt.Sprintf("New day has come! Currently available money: %d; there are %d days till month end", availMoney, monthSplit.DaysRemaining)
+    if availMoney > 0 {
+        d.out_msg_chan<- tgbotapi.NewMessage(int64(owner), msg)
+    } else {
+        // TODO: consider not only planned, but 'actual' income for current month
+        plannedIncome, err := wallet.GetPlannedMonthlyIncome()
+        if err != nil {
+            log.Printf("Could not get planned income for wallet '%s' due to error: %s", wallet.ID, err)
+            d.out_msg_chan<- tgbotapi.NewMessage(int64(owner), msg)
+            return
+        }
+        daysTillPositive := int(math.Ceil(math.Abs(float64(availMoney) / float64(plannedIncome))))
+        d.out_msg_chan<- tgbotapi.NewMessage(int64(owner), fmt.Sprintf("%s\n In order to make positive balance with current daily income %d, you should not spend any money for %d days", msg, plannedIncome, daysTillPositive))
     }
 }
 

@@ -136,6 +136,31 @@ func (w *Wallet) loadActualTransactionsForCurrentMonthTillDate(t time.Time, txs 
     return nil
 }
 
+func SplitWalletMonth(t time.Time, walletMonthStart int) (result struct {DaysInCurMonth int
+                                                                         DaysSpent int
+                                                                         DaysRemaining int}) {
+    if walletMonthStart < 1 || walletMonthStart > 28 {
+        panic("Incorrect wallet month start")
+    }
+    // TODO: use calcCurMonthBorders() ?
+    curDay := t.Day()
+    if curDay >= walletMonthStart {
+        result.DaysInCurMonth = daysInMonth[t.Month()]
+        result.DaysSpent = curDay - walletMonthStart
+        result.DaysRemaining = result.DaysInCurMonth - result.DaysSpent
+    } else {
+        // tricky code to calc how many days have passed if we've reached the end of the previous month
+        prevMonth := time.December
+        if t.Month() != time.January {
+            prevMonth = t.Month() - 1
+        }
+        result.DaysInCurMonth = daysInMonth[prevMonth]
+        result.DaysRemaining = walletMonthStart - curDay + 1
+        result.DaysSpent = result.DaysInCurMonth - result.DaysRemaining
+    }
+    return
+}
+
 func (w *Wallet) calcMonthlyIncomeTillDate(txs transactionCollection, t time.Time) int {
     // calculation of supposedly received income till current date.
     // If there are actual transaction which match planned via labels, final result differs depending on income/expense and its value
@@ -183,22 +208,10 @@ func (w *Wallet) calcMonthlyIncomeTillDate(txs transactionCollection, t time.Tim
         }
         totalMonthlyIncome += income.Value
     }
-    log.Printf("Montly income calc: total income equals to %d", totalMonthlyIncome)
-    var result float32 = 0
-    // calculating result based on hoe many days have passed considering whether we've reached the end of prev month
-    // TODO: use calcCurMonthBorders() ?
-    curDay := t.Day()
-    if curDay >= w.MonthStart {
-        daysInCurMonth := daysInMonth[t.Month()]
-        result = float32(totalMonthlyIncome) / float32(daysInCurMonth) * float32((curDay - w.MonthStart + 1)) // +1 as we assume that daily portion is granted at the beginning of the day
-    } else {
-        // tricky code to calc how many days have passed if we've reached the end of the previous month
-        prevMonth := time.December
-        if t.Month() != time.January {
-            prevMonth = t.Month() - 1
-        }
-        result = float32(totalMonthlyIncome) / float32(daysInMonth[prevMonth]) * float32(daysInMonth[prevMonth] - w.MonthStart + 1 + curDay)
-    }
+    log.Printf("Monthly income calc: total income equals to %d", totalMonthlyIncome)
+    // calculating result based on how many days have passed considering whether we've reached the end of prev month
+    monthSplit := SplitWalletMonth(t, w.MonthStart)
+    result := float32(totalMonthlyIncome) / float32(monthSplit.DaysInCurMonth) * float32(monthSplit.DaysSpent + 1) // + 1 as we also add a portion of money for current day (which is not in daysSpent)
 
     log.Printf("Monthly income calc: till date %s it equals to %f", t, result)
     return int(result)
