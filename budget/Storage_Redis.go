@@ -434,7 +434,7 @@ func (s *RedisStorage) GetAllOwners() (map[OwnerId]OwnerData, error) {
             ownerData.RegularTxs = make(map[int][]RegularTransaction, len(regularTxs))
             for _, tx := range regularTxs {
                 if sameDateTxs, found := ownerData.RegularTxs[tx.Date]; found {
-                    sameDateTxs = append(sameDateTxs, tx)
+                    ownerData.RegularTxs[tx.Date] = append(sameDateTxs, tx)
                 } else {
                     ownerData.RegularTxs[tx.Date] = []RegularTransaction { tx }
                 }
