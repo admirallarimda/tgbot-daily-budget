@@ -67,7 +67,7 @@ func (h *transactionHandler) run() {
             continue
         }
 
-        err = wallet.AddTransaction(*transaction)
+        matchesRegular, err := wallet.AddTransaction(*transaction)
         if err != nil {
             log.Printf("Could not add expence for %s with wallet %s due to error: %s", dumpMsgUserInfo(msg), wallet.ID, err)
             continue
@@ -75,9 +75,16 @@ func (h *transactionHandler) run() {
 
         log.Printf("Expense of %d has been successfully added to wallet %s for %s", transaction.Value, wallet.ID, dumpMsgUserInfo(msg))
 
+        replyMsg := ""
         availMoney, err := wallet.GetBalance(time.Now())
         if err == nil {
-            h.out_msg_chan<- tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("Currently available money: %d", availMoney))
+            replyMsg = fmt.Sprintf("Currently available money: %d", availMoney)
         }
+
+        if matchesRegular {
+            replyMsg = fmt.Sprintf("%s\nYour recent transaction matches regular transaction, thus monthly income could be modified. Current values are: %s", replyMsg, constructIncomeMessage(wallet))
+        }
+
+        h.out_msg_chan<- tgbotapi.NewMessage(msg.Chat.ID, replyMsg)
     }
 }

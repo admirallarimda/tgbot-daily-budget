@@ -21,8 +21,17 @@ func NewWalletFromStorage(id string, monthStart int, storageconn Storage) *Walle
     return wallet
 }
 
-func (w *Wallet) AddTransaction(t ActualTransaction) error {
-    return w.storage.AddActualTransaction(w.ID, t)
+// AddTransaction stores a transaction into storage, returns whether this transaction matches a regular
+func (w *Wallet) AddTransaction(t ActualTransaction) (matchesRegular bool, e error) {
+    regular, err := w.storage.GetRegularTransactions(w.ID)
+    if err != nil {
+        log.Printf("Could not get regular transactions for wallet '%s' when adding a general transaction due to error: %s", w.ID, err)
+        e = err
+        return
+    }
+    matchesRegular = checkRegularTransactionLabelExist(regular, t.Label)
+    e = w.storage.AddActualTransaction(w.ID, t)
+    return
 }
 
 func checkRegularTransactionLabelExist(transactions []RegularTransaction, label string) bool {
@@ -286,7 +295,7 @@ func (w *Wallet) SetMonthStart(date int) error {
     w.MonthStart = date
     err := w.storage.SetWalletInfo(w.ID, w.MonthStart)
     if err != nil {
-        log.Printf("Could not update wallet '%s' date from %d to %d. Reverting to oiginal value", w.ID, oldDate, date)
+        log.Printf("Could not update wallet '%s' date from %d to %d. Reverting to original value", w.ID, oldDate, date)
         w.MonthStart = oldDate
     }
     return err
