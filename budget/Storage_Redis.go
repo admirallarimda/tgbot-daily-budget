@@ -431,6 +431,7 @@ func (s *RedisStorage) GetAllOwners() (map[OwnerId]OwnerData, error) {
                 log.Printf("Could not get regular transactions for owner %d wallet '%s' due to error: %s", ownerId, *ownerData.WalletId, err)
                 // let's move forward to complete at least what we have
             }
+            ownerData.RegularTxs = make(map[int][]RegularTransaction, len(regularTxs))
             for _, tx := range regularTxs {
                 if sameDateTxs, found := ownerData.RegularTxs[tx.Date]; found {
                     sameDateTxs = append(sameDateTxs, tx)
