@@ -55,6 +55,28 @@ func (w *Wallet) AddRegularTransaction(t RegularTransaction) error {
     return w.storage.AddRegularTransaction(w.ID, t)
 }
 
+func (w *Wallet) GetCorrectedMonthlyIncome(t time.Time) (int, int, error) {
+    log.Printf("Calculating actual (corrected) monthly income for wallet '%s' for month with time %s", w.ID, t)
+
+    txs := newTransactionCollection()
+    err := w.loadRegularTransactions(txs)
+    if err != nil {
+        log.Printf("Unable to get regular transactions for wallet '%s'", w.ID)
+        return 0, 0, err
+    }
+
+    err = w.loadActualTransactionsForCurrentMonthTillDate(t, txs)
+    if err != nil {
+        log.Printf("Unable to get list of actual transactions related to current month for wallet '%s' till date %s", w.ID, t)
+        return 0, 0, err
+    }
+
+    monthlyIncome := w.calcMonthlyIncomeTillDate(*txs, t)
+    dailyIncome := monthlyIncome / daysInMonth[t.Month()]
+
+    return monthlyIncome, dailyIncome, nil
+}
+
 func (w *Wallet) GetPlannedMonthlyIncome() (int, error) {
     log.Printf("Calculating planned monthly income for wallet '%s'", w.ID)
     transactions, err := w.storage.GetRegularTransactions(w.ID)

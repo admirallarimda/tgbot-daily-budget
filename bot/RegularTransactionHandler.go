@@ -3,6 +3,7 @@ package bot
 import "regexp"
 import "log"
 import "fmt"
+import "time"
 import "strconv"
 import "sort"
 import "strings"
@@ -35,6 +36,19 @@ func (h *regularTransactionHandler) register(out_msg_chan chan<- tgbotapi.Messag
 
     return handlerTrigger{ cmd: regularCmd,
                            in_msg_chan: inCh }
+}
+
+func constructIncomeMessage(w *budget.Wallet) string {
+    plannedIncomeMsg := ""
+    if plannedIncome, err := w.GetPlannedMonthlyIncome(); err == nil {
+        if correctedMonthlyIncome, correctedDailyIncome, err := w.GetCorrectedMonthlyIncome(time.Now()); err == nil {
+            plannedIncomeMsg = fmt.Sprintf("Planned monthly income: %d", plannedIncome)
+            if plannedIncome != correctedMonthlyIncome {
+                plannedIncomeMsg = fmt.Sprintf("%s (with corrections for current month: monthly: %d; daily: %d)", plannedIncomeMsg, correctedMonthlyIncome, correctedDailyIncome)
+            }
+        }
+    }
+    return plannedIncomeMsg
 }
 
 func (h *regularTransactionHandler) showSummary(w *budget.Wallet, chatId int64) {
@@ -74,7 +88,8 @@ func (h *regularTransactionHandler) showSummary(w *budget.Wallet, chatId int64) 
             }
         }
     }
-    result := "Summary of regular transactions:\n" + incomeText + "\n" + expenseText
+
+    result := "Summary of regular transactions:\n" + incomeText + "\n" + expenseText + "\n\n" + constructIncomeMessage(w)
     h.out_msg_chan<- tgbotapi.NewMessage(chatId, result)
 }
 
@@ -159,16 +174,7 @@ func (h *regularTransactionHandler) parseTransaction(w *budget.Wallet, chatId in
         }
     }
 
-    monthlyIncome, err := w.GetPlannedMonthlyIncome()
-    if err != nil {
-        log.Printf("Could not receive monthly income for wallet %s of %d, error: %s", w.ID, chatId, err)
-        h.out_msg_chan<- tgbotapi.NewMessage(chatId, fmt.Sprintf("Something went wrong - cannot get your planned monthly income. Please contact owner. Error: %s", err))
-        // TODO: automessage to owner?
-        return
-    }
-
-    log.Printf("Total monthly income for %d is %d", chatId, monthlyIncome)
-    h.out_msg_chan<- tgbotapi.NewMessage(chatId, fmt.Sprintf("Your planned monthly income is: %d", monthlyIncome))
+    h.out_msg_chan<- tgbotapi.NewMessage(chatId, constructIncomeMessage(w))
 }
 
 func (h *regularTransactionHandler) parseUpdate (msg tgbotapi.Message) {

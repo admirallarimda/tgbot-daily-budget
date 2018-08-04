@@ -76,7 +76,7 @@ func (d *dailyReminder) sendDailyAvailableBalance(owner budget.OwnerId, wallet *
         }
         plannedDailyIncome := plannedIncome / monthSplit.DaysInCurMonth
         daysTillPositive := int(math.Ceil(math.Abs(float64(availMoney) / float64(plannedDailyIncome))))
-        d.out_msg_chan<- tgbotapi.NewMessage(int64(owner), fmt.Sprintf("%s\n In order to make positive balance with current daily income %d, you should not spend any money for %d days", msg, plannedDailyIncome, daysTillPositive))
+        d.out_msg_chan<- tgbotapi.NewMessage(int64(owner), fmt.Sprintf("%s\nIn order to make positive balance with current daily income %d, you should not spend any money for %d days", msg, plannedDailyIncome, daysTillPositive))
     }
 }
 
