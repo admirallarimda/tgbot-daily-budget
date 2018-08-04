@@ -55,7 +55,7 @@ func processDailyReminders(reminders []ownerReminder, now time.Time) (newReminde
     return
 }
 
-func (d *dailyReminder) sendDailyAvailableBalance(owner budget.OwnerId, wallet *budget.Wallet, t time.Time) {
+func (d *dailyReminder) sendDailyNotification(owner budget.OwnerId, wallet *budget.Wallet, t time.Time, ownerData budget.OwnerData) {
     log.Printf("Sending daily available balance to owner %d with wallet '%s'", owner, wallet.ID)
     availMoney, err := wallet.GetBalance(t)
     if err != nil {
@@ -77,6 +77,15 @@ func (d *dailyReminder) sendDailyAvailableBalance(owner budget.OwnerId, wallet *
         plannedDailyIncome := plannedIncome / monthSplit.DaysInCurMonth
         daysTillPositive := int(math.Ceil(math.Abs(float64(availMoney) / float64(plannedDailyIncome))))
         d.out_msg_chan<- tgbotapi.NewMessage(int64(owner), fmt.Sprintf("%s\nIn order to make positive balance with current daily income %d, you should not spend any money for %d days", msg, plannedDailyIncome, daysTillPositive))
+    }
+
+    log.Printf("Checking and sending reminders for regular transactions for current day for owner %d with wallet '%s' (has %d dates for reminding)", owner, wallet.ID, len(ownerData.RegularTxs))
+    if txs, found := ownerData.RegularTxs[t.Day()]; found {
+        msg := fmt.Sprintf("You have the following regular transactions to be fulfilled today:")
+        for _, tx := range txs {
+            msg = fmt.Sprintf("%s\n%d labeled by '%s'", msg, tx.Value, tx.Label)
+        }
+        d.out_msg_chan<- tgbotapi.NewMessage(int64(owner), msg)
     }
 }
 
@@ -109,8 +118,6 @@ func (d *dailyReminder) sendMonthlySummary(owner budget.OwnerId, wallet *budget.
     }
 
     d.out_msg_chan<- tgbotapi.NewMessage(int64(owner), msg)
-
-    d.sendDailyAvailableBalance(owner, wallet, t)
 }
 
 
@@ -150,9 +157,8 @@ func (d *dailyReminder) run() {
             }
             if wallet.MonthStart == checkTime.Day() {
                 d.sendMonthlySummary(owner, wallet, checkTime)
-            } else {
-                d.sendDailyAvailableBalance(owner, wallet, checkTime)
             }
+            d.sendDailyNotification(owner, wallet, checkTime, ownerDataMap[owner])
         }
         time.Sleep(time.Minute)
     }

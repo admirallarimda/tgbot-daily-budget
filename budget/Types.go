@@ -37,4 +37,5 @@ type OwnerData struct {
     WalletId *string    `wallet`
     //Timezone *string  `tz`
     DailyReminderTime *time.Duration `dailyNotifTime` // from UTC midnight
+    RegularTxs map[int][]RegularTransaction           // map 'dayOfMonth -> slice of RegularTransaction' used for reminding
 }

@@ -426,6 +426,18 @@ func (s *RedisStorage) GetAllOwners() (map[OwnerId]OwnerData, error) {
                 log.Printf("Could not get owner ID from key %s; error: %s", k, err)
                 continue
             }
+            regularTxs, err := s.GetRegularTransactions(WalletId(*ownerData.WalletId))
+            if err != nil {
+                log.Printf("Could not get regular transactions for owner %d wallet '%s' due to error: %s", ownerId, *ownerData.WalletId, err)
+                // let's move forward to complete at least what we have
+            }
+            for _, tx := range regularTxs {
+                if sameDateTxs, found := ownerData.RegularTxs[tx.Date]; found {
+                    sameDateTxs = append(sameDateTxs, tx)
+                } else {
+                    ownerData.RegularTxs[tx.Date] = []RegularTransaction { tx }
+                }
+            }
             resultMap[OwnerId(ownerId)] = ownerData
         }
 
