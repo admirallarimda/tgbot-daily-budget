@@ -419,7 +419,6 @@ func (s *RedisStorage) GetAllOwners() (map[OwnerId]OwnerData, error) {
                 continue
             }
             ownerData := parseOwnerData(rawData)
-            log.Printf("Owner data has been parsed into: %+v", ownerData)
             keyParts := strings.Split(k, ":")
             ownerId, err := strconv.ParseInt(keyParts[1], 10, 64)
             if err != nil {
@@ -439,6 +438,7 @@ func (s *RedisStorage) GetAllOwners() (map[OwnerId]OwnerData, error) {
                     ownerData.RegularTxs[tx.Date] = []RegularTransaction { tx }
                 }
             }
+            log.Printf("Owner data has been parsed into: %+v", ownerData)
             resultMap[OwnerId(ownerId)] = ownerData
         }
 
