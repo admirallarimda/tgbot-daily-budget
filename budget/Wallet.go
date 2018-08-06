@@ -80,7 +80,8 @@ func (w *Wallet) GetCorrectedMonthlyIncome(t time.Time) (int, int, error) {
         return 0, 0, err
     }
 
-    monthlyIncome := w.calcMonthlyIncomeTillDate(*txs, t)
+    _, t2 := calcCurMonthBorders(w.MonthStart, t)
+    monthlyIncome := w.calcMonthlyIncomeTillDate(*txs, t2)
     dailyIncome := monthlyIncome / daysInMonth[t.Month()]
 
     return monthlyIncome, dailyIncome, nil
