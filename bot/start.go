@@ -88,6 +88,7 @@ func run(updates *tgbotapi.UpdatesChannel,
          cfg botcfg.Config,
          channels botChannels,
          handlers []handlerTrigger) {
+    go serveReplies(bot, channels.out_msg_chan)
     isRunning := true
     for isRunning {
         select {
@@ -100,20 +101,27 @@ func run(updates *tgbotapi.UpdatesChannel,
                 for _, h := range handlers {
                     h.Handle(*update.Message)
                 }
-            case msg := <- channels.out_msg_chan:
-                log.Printf("Received reply")
-                _, err := bot.Send(msg)
-                if err != nil {
-                    log.Printf("Could not sent reply %+v due to error: %s", msg, err)
-                }
-                continue
             case _ = <- channels.service_chan:
                 log.Printf("Received service message")
                 continue
         }
     }
+    close(channels.out_msg_chan)
 
     log.Print("Main cycle has been aborted")
+}
+
+func serveReplies(bot *tgbotapi.BotAPI, replyCh <-chan tgbotapi.MessageConfig) {
+    log.Print("Started serving replies")
+    for msg, notClosed := <-replyCh; notClosed; {
+        log.Printf("Received reply to chat %d", msg.ChatID)
+        _, err := bot.Send(msg)
+        if err != nil {
+            log.Printf("Could not sent reply %+v due to error: %s", msg, err)
+        }
+    }
+
+    log.Print("Finished serving replies")
 }
 
 func Start(cfg botcfg.Config) error {
