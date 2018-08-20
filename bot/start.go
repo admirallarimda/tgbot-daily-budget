@@ -4,6 +4,7 @@ import "log"
 import "gopkg.in/telegram-bot-api.v4"
 import "golang.org/x/net/proxy"
 import "net/http"
+import "time"
 
 import "../botcfg"
 import "../budget"
@@ -106,6 +107,7 @@ func run(updates *tgbotapi.UpdatesChannel,
                 continue
         }
     }
+    time.Sleep(1 * time.Second)
     close(channels.out_msg_chan)
 
     log.Print("Main cycle has been aborted")
@@ -113,7 +115,8 @@ func run(updates *tgbotapi.UpdatesChannel,
 
 func serveReplies(bot *tgbotapi.BotAPI, replyCh <-chan tgbotapi.MessageConfig) {
     log.Print("Started serving replies")
-    for msg, notClosed := <-replyCh; notClosed; {
+    msg, notClosed := <-replyCh
+    for ; notClosed; msg, notClosed = <-replyCh {
         log.Printf("Received reply to chat %d", msg.ChatID)
         _, err := bot.Send(msg)
         if err != nil {
