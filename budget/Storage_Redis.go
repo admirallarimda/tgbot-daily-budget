@@ -41,11 +41,12 @@ func uniqueStringSlice(s []string) []string {
     return result
 }
 
-func NewRedisStorage(server string, db int) Storage {
+func NewRedisStorage(server string, db int, password string) Storage {
     s := &RedisStorage{}
     s.client = redis.NewClient(&redis.Options{
         Addr: server,
-        DB: db})
+        DB: db,
+        Password: password})
     return s
 }
 

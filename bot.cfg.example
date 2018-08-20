@@ -9,3 +9,4 @@ pass = ilyalavrinov
 [redis]
 server = localhost:6379
 db = 2
+pass = thisismypassw0rd

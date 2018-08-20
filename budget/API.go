@@ -5,14 +5,16 @@ import "../botcfg"
 
 var redisServer string
 var redisDB int
+var redisPassword string
 
 func Init(cfg botcfg.Config) {
     redisServer = cfg.Redis.Server
     redisDB = cfg.Redis.DB
+    redisPassword = cfg.Redis.Pass
 }
 
 func CreateStorageConnection() Storage {
-    return NewRedisStorage(redisServer, redisDB)
+    return NewRedisStorage(redisServer, redisDB, redisPassword)
 }
 
 func GetWalletForOwner(owner OwnerId, createIfAbsent bool, storageconn Storage) (*Wallet, error) {
