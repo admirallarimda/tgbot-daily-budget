@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.com/admirallarimda/tgbot-daily-budget.svg?branch=master)](https://travis-ci.com/admirallarimda/tgbot-daily-budget)
 # tgbot-daily-budget
 Telegram bot which follows 'daily available budget' approach
 
