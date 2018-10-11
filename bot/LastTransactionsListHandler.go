@@ -1,5 +1,6 @@
 package bot
 
+/*
 import "regexp"
 import "log"
 import "fmt"
@@ -16,6 +17,7 @@ type lastTransactionsListHandler struct {
 	baseHandler
 }
 
+
 func (h *lastTransactionsListHandler) register(out_msg_chan chan<- tgbotapi.MessageConfig,
 	service_chan chan<- serviceMsg) handlerTrigger {
 	inCh := make(chan tgbotapi.Message, 0)
@@ -27,6 +29,7 @@ func (h *lastTransactionsListHandler) register(out_msg_chan chan<- tgbotapi.Mess
 	return handlerTrigger{cmd: "last",
 		in_msg_chan: inCh}
 }
+
 
 func (h *lastTransactionsListHandler) run() {
 	for msg := range h.in_msg_chan {
@@ -78,3 +81,4 @@ func (h *lastTransactionsListHandler) run() {
 		h.out_msg_chan <- tgbotapi.NewMessage(chatId, result)
 	}
 }
+*/

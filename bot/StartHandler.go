@@ -1,5 +1,6 @@
 package bot
 
+/*
 import "log"
 import "fmt"
 import "gopkg.in/telegram-bot-api.v4"
@@ -39,3 +40,4 @@ func (h *startHandler) run() {
 		h.out_msg_chan <- tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("Wallet is ready for use"))
 	}
 }
+*/

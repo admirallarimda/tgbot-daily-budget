@@ -1,5 +1,6 @@
 package bot
 
+/*
 import "regexp"
 import "log"
 import "fmt"
@@ -129,3 +130,4 @@ func (h *settingsHandler) run() {
 		h.parseCmd(text, chatId, ownerId)
 	}
 }
+*/

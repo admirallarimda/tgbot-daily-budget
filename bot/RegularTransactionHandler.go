@@ -1,5 +1,6 @@
 package bot
 
+/*
 import "regexp"
 import "log"
 import "fmt"
@@ -199,3 +200,4 @@ func (h *regularTransactionHandler) run() {
 		h.parseUpdate(msg)
 	}
 }
+*/

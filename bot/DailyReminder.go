@@ -1,9 +1,12 @@
 package bot
 
+/*
 import "log"
+
 import "fmt"
 import "time"
 import "sort"
+
 import "math"
 import "gopkg.in/telegram-bot-api.v4"
 
@@ -16,15 +19,6 @@ type ownerReminder struct {
 
 type dailyReminder struct {
 	baseHandler
-}
-
-func (d *dailyReminder) register(out_msg_chan chan<- tgbotapi.MessageConfig,
-	service_chan chan<- serviceMsg) handlerTrigger {
-	d.out_msg_chan = out_msg_chan
-
-	d.storageconn = budget.CreateStorageConnection()
-
-	return handlerTrigger{}
 }
 
 func processDailyReminders(reminders []ownerReminder, now time.Time) (newReminders []ownerReminder, ownersToBeNotified []budget.OwnerId) {
@@ -162,3 +156,4 @@ func (d *dailyReminder) run() {
 		time.Sleep(time.Minute)
 	}
 }
+*/
