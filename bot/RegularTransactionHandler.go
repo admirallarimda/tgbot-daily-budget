@@ -38,19 +38,6 @@ func (h *regularTransactionHandler) register(out_msg_chan chan<- tgbotapi.Messag
 		in_msg_chan: inCh}
 }
 
-func constructIncomeMessage(w *budget.Wallet) string {
-	plannedIncomeMsg := ""
-	if plannedIncome, err := w.GetPlannedMonthlyIncome(); err == nil {
-		if correctedMonthlyIncome, correctedDailyIncome, err := w.GetCorrectedMonthlyIncome(time.Now()); err == nil {
-			plannedIncomeMsg = fmt.Sprintf("Planned monthly income: %d", plannedIncome)
-			if plannedIncome != correctedMonthlyIncome {
-				plannedIncomeMsg = fmt.Sprintf("%s (with corrections for current month: monthly: %d; daily: %d)", plannedIncomeMsg, correctedMonthlyIncome, correctedDailyIncome)
-			}
-		}
-	}
-	return plannedIncomeMsg
-}
-
 func (h *regularTransactionHandler) showSummary(w *budget.Wallet, chatId int64) {
 	transactions, err := h.storageconn.GetRegularTransactions(w.ID)
 	if err != nil {

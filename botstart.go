@@ -4,7 +4,8 @@ import "log"
 import "gopkg.in/gcfg.v1"
 import "github.com/admirallarimda/tgbotbase"
 
-//import "github.com/admirallarimda/tgbot-daily-budget/bot"
+import "github.com/admirallarimda/tgbot-daily-budget/bot"
+import "github.com/admirallarimda/tgbot-daily-budget/budget"
 
 type config struct {
 	tgbotbase.Config
@@ -31,7 +32,11 @@ func main() {
 
 	cfg := readGcfg("bot.cfg")
 	botCfg := tgbotbase.Config{TGBot: cfg.TGBot, Proxy_SOCKS5: cfg.Proxy_SOCKS5}
-	bot := tgbotbase.NewBot(botCfg)
+	tgbot := tgbotbase.NewBot(botCfg)
+
+	pool := tgbotbase.NewRedisPool(cfg.Redis)
+
+	tgbot.AddHandler(tgbotbase.NewIncomingMessageDealer(bot.NewTransactionHandler(budget.CreateStorageConnection(pool))))
 
 	/*
 		triggers = addHandler(&startHandler{}, "start", channels, triggers)
@@ -42,7 +47,7 @@ func main() {
 		triggers = addHandler(&lastTransactionsListHandler{}, "list of last transactions", channels, triggers)
 	*/
 
-	bot.Start()
+	tgbot.Start()
 
 	log.Print("Daily budget bot has stopped")
 }

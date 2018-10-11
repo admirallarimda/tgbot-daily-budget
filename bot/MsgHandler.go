@@ -5,5 +5,5 @@ import "github.com/admirallarimda/tgbot-daily-budget/budget"
 
 type baseHandler struct {
 	tgbotbase.BaseHandler
-	storageconn budget.Storage
+	storage budget.Storage
 }
