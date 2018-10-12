@@ -1,15 +1,14 @@
 package bot
 
-/*
 import "regexp"
 import "log"
 import "fmt"
-import "time"
 import "strconv"
 import "sort"
 import "strings"
 import "gopkg.in/telegram-bot-api.v4"
 
+import "github.com/admirallarimda/tgbotbase"
 import "github.com/admirallarimda/tgbot-daily-budget/budget"
 
 var incomeRe *regexp.Regexp = regexp.MustCompile("income (\\d+)")
@@ -26,23 +25,44 @@ type regularTransactionHandler struct {
 	baseHandler
 }
 
-func (h *regularTransactionHandler) register(out_msg_chan chan<- tgbotapi.MessageConfig,
-	service_chan chan<- serviceMsg) handlerTrigger {
-	inCh := make(chan tgbotapi.Message, 0)
-	h.in_msg_chan = inCh
-	h.out_msg_chan = out_msg_chan
+func NewRegularTransactionHandler(storage budget.Storage) tgbotbase.IncomingMessageHandler {
+	h := &regularTransactionHandler{}
+	h.storage = storage
+	return h
+}
 
-	h.storageconn = budget.CreateStorageConnection()
+func (h *regularTransactionHandler) HandleOne(msg tgbotapi.Message) {
+	log.Printf("Parsing regular command for %s with text '%s'", dumpMsgUserInfo(msg), msg.Text)
+	text := strings.Trim(msg.Text, " /")
+	chatId := msg.Chat.ID
+	ownerId := budget.OwnerId(chatId)
+	w, err := h.storage.GetWalletForOwner(ownerId, true)
+	if err != nil {
+		log.Printf("Cannot get wallet for %s, error: %s", dumpMsgUserInfo(msg), err)
+		h.OutMsgCh <- tgbotapi.NewMessage(chatId, "Cannot find your wallet. Have you entered /start ?")
+		return
+	}
+	if text == regularCmd {
+		h.showSummary(w, chatId)
+	} else {
+		h.parseTransaction(w, chatId, text)
+	}
+}
 
-	return handlerTrigger{cmd: regularCmd,
-		in_msg_chan: inCh}
+func (h *regularTransactionHandler) Init(outMsgCh chan<- tgbotapi.MessageConfig, srvCh chan<- tgbotbase.ServiceMsg) tgbotbase.HandlerTrigger {
+	h.OutMsgCh = outMsgCh
+	return tgbotbase.NewHandlerTrigger(nil, []string{"regular"})
+}
+
+func (h *regularTransactionHandler) Name() string {
+	return "regular transaction"
 }
 
 func (h *regularTransactionHandler) showSummary(w *budget.Wallet, chatId int64) {
-	transactions, err := h.storageconn.GetRegularTransactions(w.ID)
+	transactions, err := h.storage.GetRegularTransactions(w.ID)
 	if err != nil {
 		log.Printf("Could not get list of regular transactions for wallet '%s'", w.ID)
-		h.out_msg_chan <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Could not load list of regular transactions"))
+		h.OutMsgCh <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Could not load list of regular transactions"))
 		return
 	}
 	incomes := make(map[int][]budget.RegularTransaction, len(transactions))
@@ -77,7 +97,7 @@ func (h *regularTransactionHandler) showSummary(w *budget.Wallet, chatId int64) 
 	}
 
 	result := "Summary of regular transactions:\n" + incomeText + "\n" + expenseText + "\n\n" + constructIncomeMessage(w)
-	h.out_msg_chan <- tgbotapi.NewMessage(chatId, result)
+	h.OutMsgCh <- tgbotapi.NewMessage(chatId, result)
 }
 
 func (h *regularTransactionHandler) parseTransaction(w *budget.Wallet, chatId int64, text string) {
@@ -89,26 +109,26 @@ func (h *regularTransactionHandler) parseTransaction(w *budget.Wallet, chatId in
 
 	if len(dateMatches) == 0 {
 		log.Printf("No date in message, cannot proceed")
-		h.out_msg_chan <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Date (from 1 to 28) is mandatory for monthly settings (example: %s)", example))
+		h.OutMsgCh <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Date (from 1 to 28) is mandatory for monthly settings (example: %s)", example))
 		return
 	}
 	dateStr := dateMatches[1]
 	date, err := strconv.Atoi(dateStr)
 	if err != nil {
 		log.Printf("Could not convert date %s to int", dateStr)
-		h.out_msg_chan <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Your date '%s' is not an integer number (but it should be)", dateStr))
+		h.OutMsgCh <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Your date '%s' is not an integer number (but it should be)", dateStr))
 		return
 	}
 	if date < 1 || date > 28 {
 		log.Printf("Incorrect date %d", date)
-		h.out_msg_chan <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Your date '%d' should be between 1 and 28. If your planned income/expense is at dates 29, 30 or 31 please use 1 or 28 (which is closer)", date))
+		h.OutMsgCh <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Your date '%d' should be between 1 and 28. If your planned income/expense is at dates 29, 30 or 31 please use 1 or 28 (which is closer)", date))
 		return
 	}
 	log.Printf("Parsed date: %d", date)
 
 	if len(labelMatches) == 0 {
 		log.Printf("Labels are empty in text '%s'", text)
-		h.out_msg_chan <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Currently labels are mandatory for regular income/expenses, please follow the example: %s", example))
+		h.OutMsgCh <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Currently labels are mandatory for regular income/expenses, please follow the example: %s", example))
 		return
 	}
 	label := labelMatches[1]
@@ -121,7 +141,7 @@ func (h *regularTransactionHandler) parseTransaction(w *budget.Wallet, chatId in
 		incomeVal, err := strconv.Atoi(valStr)
 		if err != nil {
 			log.Printf("Could not convert income value %s to int", valStr)
-			h.out_msg_chan <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Your income '%s' is not an integer number (but it should be)", valStr))
+			h.OutMsgCh <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Your income '%s' is not an integer number (but it should be)", valStr))
 		} else {
 			transactions = append(transactions, budget.NewRegularTransaction(incomeVal, date, label))
 		}
@@ -133,7 +153,7 @@ func (h *regularTransactionHandler) parseTransaction(w *budget.Wallet, chatId in
 		expenseVal, err := strconv.Atoi(valStr)
 		if err != nil {
 			log.Printf("Could not convert expense value %s to int", valStr)
-			h.out_msg_chan <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Your expense '%s' is not an integer number (but it should be)", valStr))
+			h.OutMsgCh <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Your expense '%s' is not an integer number (but it should be)", valStr))
 		} else {
 			transactions = append(transactions, budget.NewRegularTransaction(-expenseVal, date, label))
 		}
@@ -141,7 +161,7 @@ func (h *regularTransactionHandler) parseTransaction(w *budget.Wallet, chatId in
 
 	if len(transactions) == 0 {
 		log.Printf("No transactions are going to be written after user command")
-		h.out_msg_chan <- tgbotapi.NewMessage(chatId, fmt.Sprintf("No income or expense were found in the message (example: %s)", example))
+		h.OutMsgCh <- tgbotapi.NewMessage(chatId, fmt.Sprintf("No income or expense were found in the message (example: %s)", example))
 		return
 	}
 
@@ -155,36 +175,11 @@ func (h *regularTransactionHandler) parseTransaction(w *budget.Wallet, chatId in
 
 		if err != nil {
 			log.Printf("Cannot process regular change for wallet %s of %d with error: %s", w.ID, chatId, err)
-			h.out_msg_chan <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Something went wrong - cannot process planned income/expense. Please contact owner. Error: %s", err))
+			h.OutMsgCh <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Something went wrong - cannot process planned income/expense. Please contact owner. Error: %s", err))
 			// TODO: automessage to owner?
 			return
 		}
 	}
 
-	h.out_msg_chan <- tgbotapi.NewMessage(chatId, constructIncomeMessage(w))
+	h.OutMsgCh <- tgbotapi.NewMessage(chatId, constructIncomeMessage(w))
 }
-
-func (h *regularTransactionHandler) parseUpdate(msg tgbotapi.Message) {
-	log.Printf("Parsing regular command for %s with text '%s'", dumpMsgUserInfo(msg), msg.Text)
-	text := strings.Trim(msg.Text, " /")
-	chatId := msg.Chat.ID
-	ownerId := budget.OwnerId(chatId)
-	w, err := h.storageconn.GetWalletForOwner(ownerId, true)
-	if err != nil {
-		log.Printf("Cannot get wallet for %s, error: %s", dumpMsgUserInfo(msg), err)
-		h.out_msg_chan <- tgbotapi.NewMessage(chatId, "Cannot find your wallet. Have you entered /start ?")
-		return
-	}
-	if text == regularCmd {
-		h.showSummary(w, chatId)
-	} else {
-		h.parseTransaction(w, chatId, text)
-	}
-}
-
-func (h *regularTransactionHandler) run() {
-	for msg := range h.in_msg_chan {
-		h.parseUpdate(msg)
-	}
-}
-*/
