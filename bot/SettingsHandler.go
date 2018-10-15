@@ -1,6 +1,5 @@
 package bot
 
-/*
 import "regexp"
 import "log"
 import "fmt"
@@ -11,6 +10,7 @@ import "strings"
 import "gopkg.in/telegram-bot-api.v4"
 
 import "github.com/admirallarimda/tgbot-daily-budget/budget"
+import "github.com/admirallarimda/tgbotbase"
 
 var monthStartRe *regexp.Regexp = regexp.MustCompile("monthStart (\\d{1,2})")
 var notifTimeRe *regexp.Regexp = regexp.MustCompile("notifTime ((\\d{1,2}:\\d{2})|(disable))")
@@ -19,16 +19,26 @@ type settingsHandler struct {
 	baseHandler
 }
 
-func (h *settingsHandler) register(out_msg_chan chan<- tgbotapi.MessageConfig,
-	service_chan chan<- serviceMsg) handlerTrigger {
-	inCh := make(chan tgbotapi.Message, 0)
-	h.in_msg_chan = inCh
-	h.out_msg_chan = out_msg_chan
+func NewWalletSettingsHandler(storage budget.Storage) tgbotbase.IncomingMessageHandler {
+	h := &settingsHandler{}
+	h.storage = storage
+	return h
+}
 
-	h.storageconn = budget.CreateStorageConnection()
+func (h *settingsHandler) Init(outMsgCh chan<- tgbotapi.MessageConfig, srvCh chan<- tgbotbase.ServiceMsg) tgbotbase.HandlerTrigger {
+	h.OutMsgCh = outMsgCh
+	return tgbotbase.NewHandlerTrigger(nil, []string{"settings"})
+}
 
-	return handlerTrigger{cmd: "settings",
-		in_msg_chan: inCh}
+func (h *settingsHandler) Name() string {
+	return "wallet settings"
+}
+
+func (h *settingsHandler) HandleOne(msg tgbotapi.Message) {
+	text := msg.Text
+	chatId := msg.Chat.ID
+	ownerId := budget.OwnerId(chatId)
+	h.parseCmd(text, chatId, ownerId)
 }
 
 func (h *settingsHandler) setMonthStart(ownerId budget.OwnerId, date int) error {
@@ -36,7 +46,7 @@ func (h *settingsHandler) setMonthStart(ownerId budget.OwnerId, date int) error 
 		return errors.New("Date must be between 1 and 28")
 	}
 
-	wallet, err := budget.GetWalletForOwner(ownerId, true, h.storageconn)
+	wallet, err := budget.GetWalletForOwner(ownerId, true, h.storage)
 	if err != nil {
 		return err
 	}
@@ -56,16 +66,16 @@ func (h *settingsHandler) changeMonthStart(text string, chatId int64, ownerId bu
 	date, err := strconv.Atoi(dateStr)
 	if err != nil {
 		log.Printf("Could not convert date '%s' for month start setting due to error: %s", dateStr, err)
-		h.out_msg_chan <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Incorrect format of date for month start modification"))
+		h.OutMsgCh <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Incorrect format of date for month start modification"))
 		return
 	}
 	err = h.setMonthStart(ownerId, date)
 	if err != nil {
 		log.Printf("Could not set month start %d for owner %d due to error: %s", date, ownerId, err)
-		h.out_msg_chan <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Could not set month start due to the following reason: %s", err))
+		h.OutMsgCh <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Could not set month start due to the following reason: %s", err))
 		return
 	}
-	h.out_msg_chan <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Month start has been successfully modified"))
+	h.OutMsgCh <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Month start has been successfully modified"))
 }
 
 func (h *settingsHandler) setNotificationTime(ownerId budget.OwnerId, enabled bool, hour, minute int) error {
@@ -79,7 +89,7 @@ func (h *settingsHandler) setNotificationTime(ownerId budget.OwnerId, enabled bo
 		notifTime = &t
 	}
 
-	return h.storageconn.SetOwnerDailyNotificationTime(ownerId, notifTime)
+	return h.storage.SetOwnerDailyNotificationTime(ownerId, notifTime)
 }
 
 func (h *settingsHandler) changeNotificationTime(text string, chatId int64, ownerId budget.OwnerId) {
@@ -95,22 +105,22 @@ func (h *settingsHandler) changeNotificationTime(text string, chatId int64, owne
 		hour, err = strconv.Atoi(timeParts[0])
 		if err != nil {
 			log.Printf("Could not convert hour '%s' to int due to error: %s", timeParts[0], err)
-			h.out_msg_chan <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Hour part in requested notification time '%s' cannot be converted to integer", matches[1]))
+			h.OutMsgCh <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Hour part in requested notification time '%s' cannot be converted to integer", matches[1]))
 			return
 		}
 		minute, err = strconv.Atoi(timeParts[1])
 		if err != nil {
 			log.Printf("Could not convert minute '%s' to int due to error: %s", timeParts[1], err)
-			h.out_msg_chan <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Minute part in requested notification time '%s' cannot be converted to integer", matches[1]))
+			h.OutMsgCh <- tgbotapi.NewMessage(chatId, fmt.Sprintf("Minute part in requested notification time '%s' cannot be converted to integer", matches[1]))
 			return
 		}
 	}
 	err = h.setNotificationTime(ownerId, enabled, hour, minute)
 	if err != nil {
 		log.Printf("Something went wrong with disabling notification time for owner %d, error: %s", ownerId, err)
-		h.out_msg_chan <- tgbotapi.NewMessage(chatId, "Something went wrong - cannot modify notification time :( ")
+		h.OutMsgCh <- tgbotapi.NewMessage(chatId, "Something went wrong - cannot modify notification time :( ")
 	} else {
-		h.out_msg_chan <- tgbotapi.NewMessage(chatId, "Your daily notification settings have been successfully modified")
+		h.OutMsgCh <- tgbotapi.NewMessage(chatId, "Your daily notification settings have been successfully modified")
 	}
 }
 
@@ -121,13 +131,3 @@ func (h *settingsHandler) parseCmd(text string, chatId int64, ownerId budget.Own
 		h.changeNotificationTime(text, chatId, ownerId)
 	}
 }
-
-func (h *settingsHandler) run() {
-	for msg := range h.in_msg_chan {
-		text := msg.Text
-		chatId := msg.Chat.ID
-		ownerId := budget.OwnerId(chatId)
-		h.parseCmd(text, chatId, ownerId)
-	}
-}
-*/
