@@ -4,7 +4,6 @@ import "log"
 
 import "fmt"
 import "time"
-import "sort"
 
 import "math"
 import "gopkg.in/telegram-bot-api.v4"
@@ -81,37 +80,45 @@ func (job *dailyReminderJob) Do(scheduledWhen time.Time, cron tgbotbase.Cron) {
 		log.Printf("Could not get wallet for owner %d with error: %s", job.ownerID, err)
 		return
 	}
+
+	replies := make([]string, 0, 2)
 	if wallet.MonthStart == scheduledWhen.Day() {
-		job.sendMonthlySummary(job.ownerID, wallet, scheduledWhen)
+		if reply, err := prepareMonthlySummary(job.ownerID, wallet, scheduledWhen.Add(time.Hour*-24)); err == nil && len(reply) > 0 {
+			replies = append(replies, reply)
+		}
 	}
-	job.sendDailyNotification(job.ownerID, wallet, scheduledWhen, job.ownerData)
+	if dailyMsgs := prepareDailyNotification(job.ownerID, wallet, scheduledWhen, job.ownerData); len(dailyMsgs) > 0 {
+		replies = append(replies, dailyMsgs...)
+	}
+
+	for _, txt := range replies {
+		job.OutMsgCh <- tgbotapi.NewMessage(int64(job.ownerID), txt)
+	}
 
 	nextNotifTime := scheduledWhen.Add(time.Duration(24) * time.Hour)
 	cron.AddJob(nextNotifTime, job)
 }
 
-func (job *dailyReminderJob) sendDailyNotification(owner budget.OwnerId, wallet *budget.Wallet, t time.Time, ownerData budget.OwnerData) {
-	log.Printf("Sending daily available balance to owner %d with wallet '%s'", owner, wallet.ID)
+func prepareDailyNotification(owner budget.OwnerId, wallet *budget.Wallet, t time.Time, ownerData budget.OwnerData) []string {
+	log.Printf("Preparing daily available balance to owner %d with wallet '%s'", owner, wallet.ID)
+	msgs := make([]string, 0, 3)
 	availMoney, err := wallet.GetBalance(t)
 	if err != nil {
 		log.Printf("Could not get balance for wallet '%s' due to error: %s", wallet.ID, err)
-		return
+		return msgs
 	}
 	monthSplit := budget.SplitWalletMonth(t, wallet.MonthStart)
-	msg := fmt.Sprintf("New day has come! Currently available money: %d; there are %d days till month end", availMoney, monthSplit.DaysRemaining)
-	if availMoney > 0 {
-		job.OutMsgCh <- tgbotapi.NewMessage(int64(owner), msg)
-	} else {
+	msgs = append(msgs, fmt.Sprintf("New day has come! Currently available money: %d; there are %d days till month end", availMoney, monthSplit.DaysRemaining))
+	if availMoney < 0 {
 		// TODO: consider not only planned, but 'actual' income for current month
 		plannedIncome, err := wallet.GetPlannedMonthlyIncome()
 		if err != nil {
 			log.Printf("Could not get planned income for wallet '%s' due to error: %s", wallet.ID, err)
-			job.OutMsgCh <- tgbotapi.NewMessage(int64(owner), msg)
-			return
+			return msgs
 		}
 		plannedDailyIncome := plannedIncome / monthSplit.DaysInCurMonth
 		daysTillPositive := int(math.Ceil(math.Abs(float64(availMoney) / float64(plannedDailyIncome))))
-		job.OutMsgCh <- tgbotapi.NewMessage(int64(owner), fmt.Sprintf("%s\nIn order to make positive balance with current daily income %d, you should not spend any money for %d days", msg, plannedDailyIncome, daysTillPositive))
+		msgs = append(msgs, fmt.Sprintf("In order to make positive balance with current daily income %d, you should not spend any money for %d days", plannedDailyIncome, daysTillPositive))
 	}
 
 	log.Printf("Checking and sending reminders for regular transactions for current day for owner %d with wallet '%s' (has %d dates for reminding)", owner, wallet.ID, len(ownerData.RegularTxs))
@@ -120,37 +127,8 @@ func (job *dailyReminderJob) sendDailyNotification(owner budget.OwnerId, wallet 
 		for _, tx := range txs {
 			msg = fmt.Sprintf("%s\n%d labeled by '%s'", msg, tx.Value, tx.Label)
 		}
-		job.OutMsgCh <- tgbotapi.NewMessage(int64(owner), msg)
-	}
-}
-
-func (job *dailyReminderJob) sendMonthlySummary(owner budget.OwnerId, wallet *budget.Wallet, t time.Time) {
-	log.Printf("Sending monthly stats to owner %d with wallet '%s'", owner, wallet.ID)
-	summary, err := wallet.GetMonthlySummary(t.Add(time.Duration(time.Hour * -24)))
-	if err != nil {
-		return
+		msgs = append(msgs, msg)
 	}
 
-	type keyValue struct {
-		key   string
-		value int
-	}
-	var sortedExpenses []keyValue
-	for k, v := range summary.ExpenseSummary {
-		sortedExpenses = append(sortedExpenses, keyValue{key: k, value: v})
-	}
-	sort.Slice(sortedExpenses, func(i, j int) bool {
-		return sortedExpenses[i].value < sortedExpenses[j].value // lowest value will be the first
-	})
-
-	msg := fmt.Sprintf("Last month summary (for dates from %s to %s):", summary.TimeStart, summary.TimeEnd)
-	for _, kv := range sortedExpenses {
-		label_txt := "unlabeled category"
-		if kv.key != "" {
-			label_txt = fmt.Sprintf("category labeled '%s'", kv.key)
-		}
-		msg = fmt.Sprintf("%s\nSpent %d for %s", msg, -(kv.value), label_txt)
-	}
-
-	job.OutMsgCh <- tgbotapi.NewMessage(int64(owner), msg)
+	return msgs
 }
