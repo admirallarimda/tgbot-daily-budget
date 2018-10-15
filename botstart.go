@@ -40,6 +40,8 @@ func main() {
 	tgbot.AddHandler(tgbotbase.NewIncomingMessageDealer(bot.NewRegularTransactionHandler(budget.CreateStorageConnection(pool))))
 	tgbot.AddHandler(tgbotbase.NewIncomingMessageDealer(bot.NewStartHandler(budget.CreateStorageConnection(pool))))
 	tgbot.AddHandler(tgbotbase.NewIncomingMessageDealer(bot.NewWalletSettingsHandler(budget.CreateStorageConnection(pool))))
+	tgbot.AddHandler(tgbotbase.NewIncomingMessageDealer(bot.NewLastTransactionsHandler(budget.CreateStorageConnection(pool))))
+
 	tgbot.AddHandler(tgbotbase.NewBackgroundMessageDealer(bot.NewDailyReminder(budget.CreateStorageConnection(pool))))
 
 	/*
