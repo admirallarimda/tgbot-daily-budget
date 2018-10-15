@@ -5,100 +5,100 @@ import "errors"
 import "fmt"
 
 type walletDetails struct {
-    monthStart int
+	monthStart int
 }
 
 type ramStorage struct {
-    walletTransactions map[WalletId][]ActualTransaction
-    walletRegularTransactions map[WalletId][]RegularTransaction
-    walletInfo map[WalletId] walletDetails
+	walletTransactions        map[WalletId][]ActualTransaction
+	walletRegularTransactions map[WalletId][]RegularTransaction
+	walletInfo                map[WalletId]walletDetails
 
-    ownerDataMap map[OwnerId]OwnerData
+	ownerDataMap map[OwnerId]OwnerData
 }
 
 func NewRamStorage() Storage {
-    storage := &ramStorage {
-        walletTransactions: make(map[WalletId][]ActualTransaction, 0),
-        walletRegularTransactions: make(map[WalletId][]RegularTransaction, 0),
-        walletInfo: make(map[WalletId]walletDetails, 0),
-        ownerDataMap: make(map[OwnerId]OwnerData, 0)}
-    return storage
+	storage := &ramStorage{
+		walletTransactions:        make(map[WalletId][]ActualTransaction, 0),
+		walletRegularTransactions: make(map[WalletId][]RegularTransaction, 0),
+		walletInfo:                make(map[WalletId]walletDetails, 0),
+		ownerDataMap:              make(map[OwnerId]OwnerData, 0)}
+	return storage
 }
 
 func (s *ramStorage) AddActualTransaction(w WalletId, val ActualTransaction) error {
-    _, found := s.walletTransactions[w]
-    if !found {
-        s.walletTransactions[w] = make([]ActualTransaction, 0, 1)
-    }
-    s.walletTransactions[w] = append(s.walletTransactions[w], val)
-    return nil
+	_, found := s.walletTransactions[w]
+	if !found {
+		s.walletTransactions[w] = make([]ActualTransaction, 0, 1)
+	}
+	s.walletTransactions[w] = append(s.walletTransactions[w], val)
+	return nil
 }
 
 func (s *ramStorage) AddRegularTransaction(w WalletId, val RegularTransaction) error {
-    _, found := s.walletRegularTransactions[w]
-    if !found {
-        s.walletRegularTransactions[w] = make([]RegularTransaction, 0, 1)
-    }
-    s.walletRegularTransactions[w] = append(s.walletRegularTransactions[w], val)
-    return nil
+	_, found := s.walletRegularTransactions[w]
+	if !found {
+		s.walletRegularTransactions[w] = make([]RegularTransaction, 0, 1)
+	}
+	s.walletRegularTransactions[w] = append(s.walletRegularTransactions[w], val)
+	return nil
 }
 
 func (s *ramStorage) GetRegularTransactions(w WalletId) ([]RegularTransaction, error) {
-    records := s.walletRegularTransactions[w]
-    return records, nil // OK if there are no such transactions
+	records := s.walletRegularTransactions[w]
+	return records, nil // OK if there are no such transactions
 }
 
 func (s *ramStorage) GetActualTransactions(w WalletId, tMin, tMax time.Time) ([]ActualTransaction, error) {
-    allRecords := s.walletTransactions[w]
-    if allRecords == nil || len(allRecords) == 0 {
-        return nil, nil
-    }
-    records := make([]ActualTransaction, 0, len(allRecords))
-    for _, r := range allRecords {
-        if r.Time.After(tMin) && (r.Time.Equal(tMax) || r.Time.Before(tMax)) {
-            records = append(records, r)
-        }
-    }
-    return records, nil // OK if no such transactions
+	allRecords := s.walletTransactions[w]
+	if allRecords == nil || len(allRecords) == 0 {
+		return nil, nil
+	}
+	records := make([]ActualTransaction, 0, len(allRecords))
+	for _, r := range allRecords {
+		if r.Time.After(tMin) && (r.Time.Equal(tMax) || r.Time.Before(tMax)) {
+			records = append(records, r)
+		}
+	}
+	return records, nil // OK if no such transactions
 }
 
 func (s *ramStorage) GetWalletForOwner(ownerId OwnerId, createIfAbsent bool) (*Wallet, error) {
-    return nil, nil
+	return nil, nil
 }
 
 func (s *ramStorage) CreateWalletOwner(ownerId OwnerId) (*Wallet, error) {
-    _, found := s.ownerDataMap[ownerId]
-    if found {
-        return nil, errors.New("Owner exists")
-    }
-    wId := fmt.Sprintf("%d", ownerId)
-    ownerData := OwnerData {WalletId: &wId}
-    s.ownerDataMap[ownerId] = ownerData
-    wallet := NewWalletFromStorage(wId, 1, s)
-    return wallet, nil
+	_, found := s.ownerDataMap[ownerId]
+	if found {
+		return nil, errors.New("Owner exists")
+	}
+	wId := fmt.Sprintf("%d", ownerId)
+	ownerData := OwnerData{WalletId: &wId}
+	s.ownerDataMap[ownerId] = ownerData
+	wallet := NewWalletFromStorage(wId, 1, s)
+	return wallet, nil
 }
 
 func (s *ramStorage) GetAllOwners() (map[OwnerId]OwnerData, error) {
-    panic("Not implemented")
-    return nil, nil
+	panic("Not implemented")
+	return nil, nil
 }
 
 func (s *ramStorage) SetWalletInfo(w WalletId, monthStart int) error {
-    panic("Not implemented")
-    return nil
+	panic("Not implemented")
+	return nil
 }
 
 func (s *ramStorage) RemoveRegularTransaction(w WalletId, t RegularTransaction) error {
-    panic("Not implemented")
-    return nil
+	panic("Not implemented")
+	return nil
 }
 
 func (s *ramStorage) GetOwnerDailyNotificationTime(id OwnerId) (*time.Duration, error) {
-    panic("Not implemented")
-    return nil, nil
+	panic("Not implemented")
+	return nil, nil
 }
 
 func (s *ramStorage) SetOwnerDailyNotificationTime(id OwnerId, notifTime *time.Duration) error {
-    panic("Not implemented")
-    return nil
+	panic("Not implemented")
+	return nil
 }

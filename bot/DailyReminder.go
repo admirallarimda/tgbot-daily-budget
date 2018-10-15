@@ -1,61 +1,96 @@
 package bot
 
 import "log"
+
 import "fmt"
 import "time"
 import "sort"
+
 import "math"
 import "gopkg.in/telegram-bot-api.v4"
 
 import "github.com/admirallarimda/tgbot-daily-budget/budget"
+import "github.com/admirallarimda/tgbotbase"
 
 type ownerReminder struct {
 	t       time.Time
 	ownerId budget.OwnerId
 }
 
-type dailyReminder struct {
+type dailyReminderHandler struct {
 	baseHandler
+	cron tgbotbase.Cron
 }
 
-func (d *dailyReminder) register(out_msg_chan chan<- tgbotapi.MessageConfig,
-	service_chan chan<- serviceMsg) handlerTrigger {
-	d.out_msg_chan = out_msg_chan
-
-	d.storageconn = budget.CreateStorageConnection()
-
-	return handlerTrigger{}
+func NewDailyReminder(storage budget.Storage) tgbotbase.BackgroundMessageHandler {
+	r := &dailyReminderHandler{}
+	r.storage = storage
+	return r
 }
 
-func processDailyReminders(reminders []ownerReminder, now time.Time) (newReminders []ownerReminder, ownersToBeNotified []budget.OwnerId) {
-	ownersToBeNotified = make([]budget.OwnerId, 0, 0)
+func (d *dailyReminderHandler) Init(outMsgCh chan<- tgbotapi.MessageConfig, srvCh chan<- tgbotbase.ServiceMsg) {
+	d.OutMsgCh = outMsgCh
+}
 
-	sort.Slice(reminders, func(x, y int) bool { return reminders[x].t.Before(reminders[y].t) })
-	lastNotifIx := -1
-	for i, reminder := range reminders {
-		t := reminder.t
-		if t.After(now) {
-			log.Printf("Will wait for reminder times finished at %s", t)
-			break
+func (d *dailyReminderHandler) Name() string {
+	return "daily reminder"
+}
+
+func (d *dailyReminderHandler) Run() {
+	d.cron = tgbotbase.NewCron()
+	d.initialLoad()
+	// TODO: add channels for add/remove of new reminders
+}
+
+func (d *dailyReminderHandler) initialLoad() {
+	ownerDataMap, err := d.storage.GetAllOwners()
+	if err != nil {
+		log.Panicf("Cannot start daily reminder as it is impossible to get owner data due to error: %s", err)
+	}
+	log.Printf("Starting daily reminder using a map of %d wallet owners", len(ownerDataMap))
+
+	now := time.Now()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	for id, data := range ownerDataMap {
+		if data.DailyReminderTime == nil {
+			log.Printf("Owner %d doesn't have reminder settings; it will not be added into notificaiton list", id)
+			continue
 		}
-		lastNotifIx = i
-
-		log.Printf("Need to send daily notifications for user %d with notification time at %s", reminder.ownerId, t)
-		ownersToBeNotified = append(ownersToBeNotified, reminder.ownerId)
-
-		nextNotifTime := t.Add(time.Duration(24) * time.Hour)
-		reminders = append(reminders, ownerReminder{t: nextNotifTime, ownerId: reminder.ownerId})
+		reminderTime := startOfDay.Add(*data.DailyReminderTime)
+		if reminderTime.Before(now) {
+			reminderTime = reminderTime.Add(24 * time.Hour)
+		}
+		job := &dailyReminderJob{}
+		job.OutMsgCh = d.OutMsgCh
+		job.storage = d.storage
+		job.ownerID = id
+		job.ownerData = data
+		d.cron.AddJob(reminderTime, job)
 	}
-
-	if lastNotifIx == -1 {
-		newReminders = reminders
-	} else {
-		newReminders = reminders[lastNotifIx+1:]
-	}
-	return
 }
 
-func (d *dailyReminder) sendDailyNotification(owner budget.OwnerId, wallet *budget.Wallet, t time.Time, ownerData budget.OwnerData) {
+type dailyReminderJob struct {
+	baseHandler
+	ownerID   budget.OwnerId
+	ownerData budget.OwnerData
+}
+
+func (job *dailyReminderJob) Do(scheduledWhen time.Time, cron tgbotbase.Cron) {
+	wallet, err := budget.GetWalletForOwner(job.ownerID, false, job.storage)
+	if err != nil {
+		log.Printf("Could not get wallet for owner %d with error: %s", job.ownerID, err)
+		return
+	}
+	if wallet.MonthStart == scheduledWhen.Day() {
+		job.sendMonthlySummary(job.ownerID, wallet, scheduledWhen)
+	}
+	job.sendDailyNotification(job.ownerID, wallet, scheduledWhen, job.ownerData)
+
+	nextNotifTime := scheduledWhen.Add(time.Duration(24) * time.Hour)
+	cron.AddJob(nextNotifTime, job)
+}
+
+func (job *dailyReminderJob) sendDailyNotification(owner budget.OwnerId, wallet *budget.Wallet, t time.Time, ownerData budget.OwnerData) {
 	log.Printf("Sending daily available balance to owner %d with wallet '%s'", owner, wallet.ID)
 	availMoney, err := wallet.GetBalance(t)
 	if err != nil {
@@ -65,18 +100,18 @@ func (d *dailyReminder) sendDailyNotification(owner budget.OwnerId, wallet *budg
 	monthSplit := budget.SplitWalletMonth(t, wallet.MonthStart)
 	msg := fmt.Sprintf("New day has come! Currently available money: %d; there are %d days till month end", availMoney, monthSplit.DaysRemaining)
 	if availMoney > 0 {
-		d.out_msg_chan <- tgbotapi.NewMessage(int64(owner), msg)
+		job.OutMsgCh <- tgbotapi.NewMessage(int64(owner), msg)
 	} else {
 		// TODO: consider not only planned, but 'actual' income for current month
 		plannedIncome, err := wallet.GetPlannedMonthlyIncome()
 		if err != nil {
 			log.Printf("Could not get planned income for wallet '%s' due to error: %s", wallet.ID, err)
-			d.out_msg_chan <- tgbotapi.NewMessage(int64(owner), msg)
+			job.OutMsgCh <- tgbotapi.NewMessage(int64(owner), msg)
 			return
 		}
 		plannedDailyIncome := plannedIncome / monthSplit.DaysInCurMonth
 		daysTillPositive := int(math.Ceil(math.Abs(float64(availMoney) / float64(plannedDailyIncome))))
-		d.out_msg_chan <- tgbotapi.NewMessage(int64(owner), fmt.Sprintf("%s\nIn order to make positive balance with current daily income %d, you should not spend any money for %d days", msg, plannedDailyIncome, daysTillPositive))
+		job.OutMsgCh <- tgbotapi.NewMessage(int64(owner), fmt.Sprintf("%s\nIn order to make positive balance with current daily income %d, you should not spend any money for %d days", msg, plannedDailyIncome, daysTillPositive))
 	}
 
 	log.Printf("Checking and sending reminders for regular transactions for current day for owner %d with wallet '%s' (has %d dates for reminding)", owner, wallet.ID, len(ownerData.RegularTxs))
@@ -85,11 +120,11 @@ func (d *dailyReminder) sendDailyNotification(owner budget.OwnerId, wallet *budg
 		for _, tx := range txs {
 			msg = fmt.Sprintf("%s\n%d labeled by '%s'", msg, tx.Value, tx.Label)
 		}
-		d.out_msg_chan <- tgbotapi.NewMessage(int64(owner), msg)
+		job.OutMsgCh <- tgbotapi.NewMessage(int64(owner), msg)
 	}
 }
 
-func (d *dailyReminder) sendMonthlySummary(owner budget.OwnerId, wallet *budget.Wallet, t time.Time) {
+func (job *dailyReminderJob) sendMonthlySummary(owner budget.OwnerId, wallet *budget.Wallet, t time.Time) {
 	log.Printf("Sending monthly stats to owner %d with wallet '%s'", owner, wallet.ID)
 	summary, err := wallet.GetMonthlySummary(t.Add(time.Duration(time.Hour * -24)))
 	if err != nil {
@@ -117,48 +152,5 @@ func (d *dailyReminder) sendMonthlySummary(owner budget.OwnerId, wallet *budget.
 		msg = fmt.Sprintf("%s\nSpent %d for %s", msg, -(kv.value), label_txt)
 	}
 
-	d.out_msg_chan <- tgbotapi.NewMessage(int64(owner), msg)
-}
-
-func (d *dailyReminder) run() {
-	ownerDataMap, err := d.storageconn.GetAllOwners()
-	if err != nil {
-		log.Panicf("Cannot start daily reminder as it is impossible to get owner data due to error: %s", err)
-	}
-
-	log.Printf("Starting daily reminder using a map of %d wallet owners", len(ownerDataMap))
-
-	reminders := make([]ownerReminder, 0, len(ownerDataMap))
-	// preparing structures for sorted reminders
-	now := time.Now()
-	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	for id, data := range ownerDataMap {
-		if data.DailyReminderTime == nil {
-			log.Printf("Owner %d doesn't have reminder settings; it will not be added into notificaiton list", id)
-			continue
-		}
-		reminderTime := startOfDay.Add(*data.DailyReminderTime)
-		reminders = append(reminders, ownerReminder{t: reminderTime, ownerId: id})
-	}
-	log.Printf("Running one 'fake' daily reminder processing in order to skip all reminders for current day")
-	reminders, _ = processDailyReminders(reminders, time.Now())
-
-	// main notif cycle
-	for {
-		checkTime := time.Now()
-		var ownersToBeNotified []budget.OwnerId
-		reminders, ownersToBeNotified = processDailyReminders(reminders, checkTime)
-		for _, owner := range ownersToBeNotified {
-			wallet, err := budget.GetWalletForOwner(owner, false, d.storageconn)
-			if err != nil {
-				log.Printf("Could not get wallet for owner %d with error: %s", owner, err)
-				continue
-			}
-			if wallet.MonthStart == checkTime.Day() {
-				d.sendMonthlySummary(owner, wallet, checkTime)
-			}
-			d.sendDailyNotification(owner, wallet, checkTime, ownerDataMap[owner])
-		}
-		time.Sleep(time.Minute)
-	}
+	job.OutMsgCh <- tgbotapi.NewMessage(int64(owner), msg)
 }
