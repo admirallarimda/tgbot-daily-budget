@@ -23,7 +23,7 @@ func NewLastTransactionsHandler(storage budget.Storage) tgbotbase.IncomingMessag
 	return h
 }
 
-func (h *lastTransactionsListHandler) Init(outMsgCh chan<- tgbotapi.MessageConfig, srvCh chan<- tgbotbase.ServiceMsg) tgbotbase.HandlerTrigger {
+func (h *lastTransactionsListHandler) Init(outMsgCh chan<- tgbotapi.Chattable, srvCh chan<- tgbotbase.ServiceMsg) tgbotbase.HandlerTrigger {
 	h.OutMsgCh = outMsgCh
 	return tgbotbase.NewHandlerTrigger(nil, []string{"last"})
 }

@@ -28,7 +28,7 @@ func NewDailyReminder(storage budget.Storage) tgbotbase.BackgroundMessageHandler
 	return r
 }
 
-func (d *dailyReminderHandler) Init(outMsgCh chan<- tgbotapi.MessageConfig, srvCh chan<- tgbotbase.ServiceMsg) {
+func (d *dailyReminderHandler) Init(outMsgCh chan<- tgbotapi.Chattable, srvCh chan<- tgbotbase.ServiceMsg) {
 	d.OutMsgCh = outMsgCh
 }
 

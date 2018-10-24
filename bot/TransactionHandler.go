@@ -78,7 +78,7 @@ func (h *transactionHandler) HandleOne(msg tgbotapi.Message) {
 	h.OutMsgCh <- tgbotapi.NewMessage(msg.Chat.ID, replyMsg)
 }
 
-func (h *transactionHandler) Init(outMsgCh chan<- tgbotapi.MessageConfig, srvCh chan<- tgbotbase.ServiceMsg) tgbotbase.HandlerTrigger {
+func (h *transactionHandler) Init(outMsgCh chan<- tgbotapi.Chattable, srvCh chan<- tgbotbase.ServiceMsg) tgbotbase.HandlerTrigger {
 	h.OutMsgCh = outMsgCh
 	return tgbotbase.NewHandlerTrigger(re, nil)
 }
