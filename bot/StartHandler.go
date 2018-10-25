@@ -17,7 +17,7 @@ func NewStartHandler(storage budget.Storage) tgbotbase.IncomingMessageHandler {
 	return h
 }
 
-func (h *startHandler) Init(outMsgCh chan<- tgbotapi.MessageConfig, srvCh chan<- tgbotbase.ServiceMsg) tgbotbase.HandlerTrigger {
+func (h *startHandler) Init(outMsgCh chan<- tgbotapi.Chattable, srvCh chan<- tgbotbase.ServiceMsg) tgbotbase.HandlerTrigger {
 	h.OutMsgCh = outMsgCh
 	return tgbotbase.NewHandlerTrigger(nil, []string{"start"})
 }

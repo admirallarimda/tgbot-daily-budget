@@ -49,7 +49,7 @@ func (h *regularTransactionHandler) HandleOne(msg tgbotapi.Message) {
 	}
 }
 
-func (h *regularTransactionHandler) Init(outMsgCh chan<- tgbotapi.MessageConfig, srvCh chan<- tgbotbase.ServiceMsg) tgbotbase.HandlerTrigger {
+func (h *regularTransactionHandler) Init(outMsgCh chan<- tgbotapi.Chattable, srvCh chan<- tgbotbase.ServiceMsg) tgbotbase.HandlerTrigger {
 	h.OutMsgCh = outMsgCh
 	return tgbotbase.NewHandlerTrigger(nil, []string{"regular"})
 }

@@ -25,7 +25,7 @@ func NewWalletSettingsHandler(storage budget.Storage) tgbotbase.IncomingMessageH
 	return h
 }
 
-func (h *settingsHandler) Init(outMsgCh chan<- tgbotapi.MessageConfig, srvCh chan<- tgbotbase.ServiceMsg) tgbotbase.HandlerTrigger {
+func (h *settingsHandler) Init(outMsgCh chan<- tgbotapi.Chattable, srvCh chan<- tgbotbase.ServiceMsg) tgbotbase.HandlerTrigger {
 	h.OutMsgCh = outMsgCh
 	return tgbotbase.NewHandlerTrigger(nil, []string{"settings"})
 }
